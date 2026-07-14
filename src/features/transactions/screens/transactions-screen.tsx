@@ -1,6 +1,13 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { router, type Href, useFocusEffect } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  SectionList,
+  type SectionListData,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,20 +15,110 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { getErrorMessage } from '@/lib/errors';
 
-import {
-  formatCurrency,
-  formatTransactionDate,
-  getTransactionCategoryName,
-} from '../formatters';
+import { formatCurrency, getTransactionCategoryName } from '../formatters';
 import { listTransactions } from '../transactions.api';
 import type { TransactionListItem } from '../types';
 
+type FilterPeriod = 'today' | 'week' | 'month' | 'year';
+
+type TransactionSection = {
+  data: TransactionListItem[];
+  title: string;
+};
+
+const filterOptions: { label: string; value: FilterPeriod }[] = [
+  { label: 'Hoy', value: 'today' },
+  { label: 'Semana', value: 'week' },
+  { label: 'Mes', value: 'month' },
+  { label: 'Año', value: 'year' },
+];
+
+const dayHeaderFormatter = new Intl.DateTimeFormat('es-MX', {
+  day: 'numeric',
+  month: 'long',
+});
+
+function parseTransactionDate(date: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getStartOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function getPeriodRange(period: FilterPeriod) {
+  const today = getStartOfDay(new Date());
+
+  if (period === 'today') {
+    return {
+      end: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1),
+      start: today,
+    };
+  }
+
+  if (period === 'week') {
+    const mondayOffset = (today.getDay() + 6) % 7;
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset);
+
+    return {
+      end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7),
+      start,
+    };
+  }
+
+  if (period === 'year') {
+    return {
+      end: new Date(today.getFullYear() + 1, 0, 1),
+      start: new Date(today.getFullYear(), 0, 1),
+    };
+  }
+
+  return {
+    end: new Date(today.getFullYear(), today.getMonth() + 1, 1),
+    start: new Date(today.getFullYear(), today.getMonth(), 1),
+  };
+}
+
+function isTransactionInPeriod(transaction: TransactionListItem, period: FilterPeriod) {
+  const transactionDate = parseTransactionDate(transaction.transaction_date);
+  const { end, start } = getPeriodRange(period);
+
+  return transactionDate >= start && transactionDate < end;
+}
+
+function groupTransactionsByDay(transactions: TransactionListItem[]) {
+  return transactions.reduce<TransactionSection[]>((sections, transaction) => {
+    const title = dayHeaderFormatter.format(parseTransactionDate(transaction.transaction_date));
+    const lastSection = sections[sections.length - 1];
+
+    if (lastSection?.title === title) {
+      lastSection.data.push(transaction);
+    } else {
+      sections.push({ data: [transaction], title });
+    }
+
+    return sections;
+  }, []);
+}
+
 export default function TransactionsScreen() {
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('month');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const lastTapRef = useRef({ id: '', time: 0 });
+
+  const filteredTransactions = useMemo(
+    () => transactions.filter((transaction) => isTransactionInPeriod(transaction, selectedPeriod)),
+    [selectedPeriod, transactions],
+  );
+
+  const transactionSections = useMemo(
+    () => groupTransactionsByDay(filteredTransactions),
+    [filteredTransactions],
+  );
 
   const loadTransactions = useCallback(async (showLoading = true) => {
     setErrorMessage('');
@@ -74,7 +171,7 @@ export default function TransactionsScreen() {
             {item.description || getTransactionCategoryName(item)}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            {getTransactionCategoryName(item)} · {formatTransactionDate(item.transaction_date)}
+            {getTransactionCategoryName(item)}
           </ThemedText>
         </View>
         <ThemedText
@@ -84,6 +181,20 @@ export default function TransactionsScreen() {
           {formatCurrency(item.amount)}
         </ThemedText>
       </Pressable>
+    );
+  }
+
+  function renderSectionHeader({
+    section,
+  }: {
+    section: SectionListData<TransactionListItem, TransactionSection>;
+  }) {
+    return (
+      <View style={styles.sectionHeader}>
+        <ThemedText type="smallBold" style={styles.sectionHeaderText}>
+          {section.title}
+        </ThemedText>
+      </View>
     );
   }
 
@@ -100,6 +211,30 @@ export default function TransactionsScreen() {
               Refrescar
             </ThemedText>
           </Pressable>
+        </View>
+
+        <View style={styles.filterSegment}>
+          {filterOptions.map((option) => {
+            const isSelected = selectedPeriod === option.value;
+
+            return (
+              <Pressable
+                accessibilityRole="button"
+                key={option.value}
+                onPress={() => setSelectedPeriod(option.value)}
+                style={({ pressed }) => [
+                  styles.filterButton,
+                  isSelected && styles.filterButtonActive,
+                  pressed && styles.buttonPressed,
+                ]}>
+                <ThemedText
+                  type="smallBold"
+                  style={isSelected && styles.filterButtonTextActive}>
+                  {option.label}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
         </View>
 
         {isLoading ? (
@@ -124,18 +259,24 @@ export default function TransactionsScreen() {
             </Pressable>
           </View>
         ) : (
-          <FlatList
+          <SectionList
             contentContainerStyle={[
               styles.listContent,
-              transactions.length === 0 && styles.emptyListContent,
+              transactionSections.length === 0 && styles.emptyListContent,
             ]}
-            data={transactions}
+            sections={transactionSections}
             keyExtractor={(item) => item.id}
             ListEmptyComponent={
               <View style={styles.stateContainer}>
-                <ThemedText type="smallBold">Aún no hay movimientos.</ThemedText>
+                <ThemedText type="smallBold">
+                  {transactions.length === 0
+                    ? 'Aún no hay movimientos.'
+                    : 'No hay movimientos en este periodo.'}
+                </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
-                  Crea tu primer movimiento con el botón +.
+                  {transactions.length === 0
+                    ? 'Crea tu primer movimiento con el botón +.'
+                    : 'Prueba con otro filtro o registra un movimiento nuevo.'}
                 </ThemedText>
                 <Pressable
                   accessibilityRole="button"
@@ -150,6 +291,8 @@ export default function TransactionsScreen() {
             onRefresh={() => loadTransactions(false)}
             refreshing={isRefreshing}
             renderItem={renderTransaction}
+            renderSectionHeader={renderSectionHeader}
+            stickySectionHeadersEnabled={false}
           />
         )}
       </SafeAreaView>
@@ -171,6 +314,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.three,
   },
+  filterSegment: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: Spacing.one,
+    marginBottom: Spacing.three,
+    padding: Spacing.one,
+  },
+  filterButton: {
+    alignItems: 'center',
+    borderRadius: 6,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  filterButtonActive: {
+    backgroundColor: '#111827',
+  },
+  filterButtonTextActive: {
+    color: '#ffffff',
+  },
   refreshButton: {
     backgroundColor: '#111827',
     borderRadius: 8,
@@ -181,7 +345,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   listContent: {
-    gap: Spacing.two,
     paddingBottom: Spacing.six,
   },
   emptyListContent: {
@@ -195,6 +358,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.three,
     justifyContent: 'space-between',
+    marginBottom: Spacing.one,
     padding: Spacing.three,
   },
   itemPressed: {
@@ -205,7 +369,15 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   amount: {
+    minWidth: 110,
     textAlign: 'right',
+  },
+  sectionHeader: {
+    paddingBottom: Spacing.two,
+    paddingTop: Spacing.three,
+  },
+  sectionHeaderText: {
+    color: '#374151',
   },
   incomeAmount: {
     color: '#15803d',

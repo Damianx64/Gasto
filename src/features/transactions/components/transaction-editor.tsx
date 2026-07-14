@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import DateTimePicker, {
+  type DateTimePickerChangeEvent,
+} from '@expo/ui/community/datetime-picker';
 import { router } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import {
   ActivityIndicator,
   Alert,
@@ -33,6 +37,24 @@ type TransactionEditorProps = {
   transactionId?: string;
 };
 
+function parseDateInput(date: string) {
+  const [year, month, day] = date.split('-').map(Number);
+
+  if (!year || !month || !day) {
+    return new Date();
+  }
+
+  return new Date(year, month - 1, day);
+}
+
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 export function TransactionEditor({ transactionId }: TransactionEditorProps) {
   const isEditing = Boolean(transactionId);
   const [amount, setAmount] = useState('');
@@ -40,6 +62,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
   const [categoryId, setCategoryId] = useState('');
   const [description, setDescription] = useState('');
   const [transactionDate, setTransactionDate] = useState(getToday());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -159,6 +182,11 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
         },
       ],
     );
+  }
+
+  function handleDatePickerChange(_: DateTimePickerChangeEvent, selectedDate: Date) {
+    setTransactionDate(formatDateInput(selectedDate));
+    setShowDatePicker(false);
   }
 
   return (
@@ -282,14 +310,48 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
 
                 <View style={styles.field}>
                   <ThemedText type="smallBold">Fecha</ThemedText>
-                  <TextInput
-                    inputMode="numeric"
-                    onChangeText={setTransactionDate}
-                    placeholder="AAAA-MM-DD"
-                    placeholderTextColor="#9ca3af"
-                    style={styles.input}
-                    value={transactionDate}
-                  />
+                  <View style={styles.dateInputRow}>
+                    <TextInput
+                      inputMode="numeric"
+                      onChangeText={setTransactionDate}
+                      placeholder="AAAA-MM-DD"
+                      placeholderTextColor="#9ca3af"
+                      style={[styles.input, styles.dateInput]}
+                      value={transactionDate}
+                    />
+                    <Pressable
+                      accessibilityLabel="Seleccionar fecha"
+                      accessibilityRole="button"
+                      onPress={() => {
+                        if (Platform.OS !== 'web') {
+                          setShowDatePicker(true);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.calendarButton,
+                        pressed && styles.buttonPressed,
+                      ]}>
+                      <SymbolView
+                        fallback={<ThemedText type="smallBold">Cal</ThemedText>}
+                        name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
+                        size={22}
+                        tintColor="#111827"
+                      />
+                    </Pressable>
+                  </View>
+
+                  {showDatePicker && Platform.OS !== 'web' ? (
+                    <DateTimePicker
+                      accentColor="#111827"
+                      display="default"
+                      mode="date"
+                      negativeButton={{ label: 'Cancelar' }}
+                      onDismiss={() => setShowDatePicker(false)}
+                      onValueChange={handleDatePickerChange}
+                      positiveButton={{ label: 'Aceptar' }}
+                      value={parseDateInput(transactionDate)}
+                    />
+                  ) : null}
                 </View>
 
                 {message ? (
@@ -380,6 +442,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 48,
     paddingHorizontal: Spacing.three,
+  },
+  dateInputRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  dateInput: {
+    flex: 1,
+  },
+  calendarButton: {
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
   },
   segment: {
     backgroundColor: '#f3f4f6',
