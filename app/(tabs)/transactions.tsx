@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { router, type Href, useFocusEffect } from 'expo-router';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -52,6 +52,7 @@ export default function TransactionsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const lastTapRef = useRef({ id: '', time: 0 });
 
   const loadTransactions = useCallback(async (showLoading = true) => {
     setErrorMessage('');
@@ -96,11 +97,27 @@ export default function TransactionsScreen() {
     }, [loadTransactions]),
   );
 
+  function handleTransactionPress(transactionId: string) {
+    const now = Date.now();
+    const isDoubleTap =
+      lastTapRef.current.id === transactionId && now - lastTapRef.current.time < 350;
+
+    lastTapRef.current = { id: transactionId, time: now };
+
+    if (isDoubleTap) {
+      router.push({ pathname: '/transaction/[id]', params: { id: transactionId } } as Href);
+    }
+  }
+
   function renderTransaction({ item }: { item: Transaction }) {
     const isIncome = item.type === 'income';
 
     return (
-      <View style={styles.item}>
+      <Pressable
+        accessibilityHint="Toca dos veces para editar este movimiento"
+        accessibilityRole="button"
+        onPress={() => handleTransactionPress(item.id)}
+        style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}>
         <View style={styles.itemMain}>
           <ThemedText type="smallBold">{item.description || getCategoryName(item)}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
@@ -113,7 +130,7 @@ export default function TransactionsScreen() {
           {isIncome ? '+' : '-'}
           {currencyFormatter.format(Number(item.amount))}
         </ThemedText>
-      </View>
+      </Pressable>
     );
   }
 
@@ -226,6 +243,9 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     justifyContent: 'space-between',
     padding: Spacing.three,
+  },
+  itemPressed: {
+    opacity: 0.8,
   },
   itemMain: {
     flex: 1,
