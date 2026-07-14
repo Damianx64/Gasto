@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   decorationLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
   },
   topGlow: {

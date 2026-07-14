@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -32,6 +33,8 @@ const colors = {
   rust: '#A95036',
   white: '#FFFFFF',
 };
+
+const homeAvatar = require('../../../../assets/images/pfp_casa.webp');
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -86,7 +89,7 @@ export default function LoginScreen() {
             <View style={styles.content}>
               <View style={styles.hero}>
                 <View style={styles.avatarOrnament}>
-                  <View style={styles.avatarPlaceholder} />
+                  <Image source={homeAvatar} style={styles.avatarImage} />
                   <View style={[styles.avatarLeaf, styles.avatarLeafLeft]} />
                   <View style={[styles.avatarLeaf, styles.avatarLeafRight]} />
                 </View>
@@ -251,7 +254,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
     width: 148,
   },
-  avatarPlaceholder: {
+  avatarImage: {
     backgroundColor: 'rgba(255, 253, 248, 0.82)',
     borderColor: 'rgba(133, 149, 109, 0.28)',
     borderRadius: 54,
@@ -261,6 +264,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
+    resizeMode: 'cover',
     width: 108,
   },
   avatarLeaf: {
@@ -429,7 +433,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   decorationLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
   },
   topGlow: {
