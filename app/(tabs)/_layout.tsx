@@ -1,4 +1,5 @@
-import { Tabs } from 'expo-router';
+import { router, Tabs } from 'expo-router';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 export default function MainTabsLayout() {
   return (
@@ -16,6 +17,21 @@ export default function MainTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="new"
+        options={{
+          tabBarButton: () => (
+            <Pressable
+              accessibilityLabel="Crear movimiento"
+              accessibilityRole="button"
+              onPress={() => router.push('/transaction/new')}
+              style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}>
+              <Text style={styles.addButtonText}>+</Text>
+            </Pressable>
+          ),
+          title: '',
+        }}
+      />
+      <Tabs.Screen
         name="reports"
         options={{
           title: 'Reportes',
@@ -30,3 +46,25 @@ export default function MainTabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  addButton: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: '#111827',
+    borderRadius: 28,
+    height: 56,
+    justifyContent: 'center',
+    marginTop: -20,
+    width: 56,
+  },
+  addButtonPressed: {
+    opacity: 0.75,
+  },
+  addButtonText: {
+    color: '#ffffff',
+    fontSize: 32,
+    fontWeight: '600',
+    lineHeight: 34,
+  },
+});
