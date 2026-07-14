@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import { useEffect } from 'react';
 import {
   DarkTheme,
   DefaultTheme,
@@ -11,30 +10,13 @@ import {
 } from 'expo-router';
 import { useColorScheme } from 'react-native';
 
-import { supabase } from '@/lib/supabase';
+import { useAuthSession } from '@/features/auth/use-auth-session';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const segments = useSegments();
   const navigationState = useRootNavigationState();
-  const [session, setSession] = useState<Session | null>(null);
-  const [isSessionReady, setIsSessionReady] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setIsSessionReady(true);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setIsSessionReady(true);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { isSessionReady, session } = useAuthSession();
 
   useEffect(() => {
     if (!navigationState?.key || !isSessionReady) {

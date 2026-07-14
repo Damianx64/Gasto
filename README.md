@@ -20,17 +20,21 @@ App de finanzas personales construida con Expo Router.
 
 ```text
 app/
-  (auth)/        Flujos de autenticacion
-  (tabs)/        Navegacion principal
-  transaction/   Alta y detalle de movimientos
+  (auth)/        Rutas de autenticacion
+  (tabs)/        Rutas de navegacion principal
+  category/      Rutas de categorias
+  transaction/   Rutas de movimientos
 
 src/
   components/    Componentes reutilizables de UI
   constants/     Valores constantes de la app
-  features/      Modulos del dominio
+  features/
+    auth/         Sesion, acceso y registro
+    categories/   Consultas, tipos, editores y gestion de categorias
+    transactions/ Consultas, tipos, formatos y editores de movimientos
   hooks/         Hooks compartidos
   lib/           Integraciones, clientes y configuracion tecnica
-  types/         Tipos globales
-  utils/         Utilidades compartidas
 ```
 
+Los archivos de `app/` solo definen rutas. La logica de cada flujo vive en su modulo de
+`src/features/`, y el acceso a Supabase se concentra en los archivos `*.api.ts`.
