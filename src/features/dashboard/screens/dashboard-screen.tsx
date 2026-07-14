@@ -156,7 +156,7 @@ export default function DashboardScreen() {
     if (mode === 'refresh') setIsRefreshing(true);
 
     try {
-      setTransactions(await listTransactions());
+      setTransactions(await listTransactions({ forceRefresh: mode === 'refresh' }));
       hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -218,7 +218,7 @@ export default function DashboardScreen() {
       currentSummary,
       expenseTrend: getTrend(currentSummary.expenses, previousSummary.expenses),
       incomeTrend: getTrend(currentSummary.income, previousSummary.income),
-      recentTransactions: transactions.slice(0, 3),
+      recentTransactions: transactions.slice(0, 6),
     };
   }, [transactions]);
 

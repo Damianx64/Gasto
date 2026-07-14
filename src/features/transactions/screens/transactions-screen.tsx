@@ -108,6 +108,7 @@ export default function TransactionsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const hasLoadedRef = useRef(false);
   const lastTapRef = useRef({ id: '', time: 0 });
 
   const filteredTransactions = useMemo(
@@ -120,17 +121,15 @@ export default function TransactionsScreen() {
     [filteredTransactions],
   );
 
-  const loadTransactions = useCallback(async (showLoading = true) => {
+  const loadTransactions = useCallback(async (mode: 'initial' | 'refresh' | 'silent') => {
     setErrorMessage('');
 
-    if (showLoading) {
-      setIsLoading(true);
-    } else {
-      setIsRefreshing(true);
-    }
+    if (mode === 'initial') setIsLoading(true);
+    if (mode === 'refresh') setIsRefreshing(true);
 
     try {
-      setTransactions(await listTransactions());
+      setTransactions(await listTransactions({ forceRefresh: mode === 'refresh' }));
+      hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -141,7 +140,7 @@ export default function TransactionsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadTransactions();
+      loadTransactions(hasLoadedRef.current ? 'silent' : 'initial');
     }, [loadTransactions]),
   );
 
@@ -205,7 +204,7 @@ export default function TransactionsScreen() {
           <ThemedText type="subtitle">Movimientos</ThemedText>
           <Pressable
             accessibilityRole="button"
-            onPress={() => loadTransactions(false)}
+            onPress={() => loadTransactions('refresh')}
             style={({ pressed }) => [styles.refreshButton, pressed && styles.buttonPressed]}>
             <ThemedText type="smallBold" style={styles.refreshButtonText}>
               Refrescar
@@ -251,7 +250,7 @@ export default function TransactionsScreen() {
             </ThemedText>
             <Pressable
               accessibilityRole="button"
-              onPress={() => loadTransactions()}
+              onPress={() => loadTransactions('initial')}
               style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}>
               <ThemedText type="smallBold" style={styles.primaryButtonText}>
                 Reintentar
@@ -288,7 +287,7 @@ export default function TransactionsScreen() {
                 </Pressable>
               </View>
             }
-            onRefresh={() => loadTransactions(false)}
+            onRefresh={() => loadTransactions('refresh')}
             refreshing={isRefreshing}
             renderItem={renderTransaction}
             renderSectionHeader={renderSectionHeader}

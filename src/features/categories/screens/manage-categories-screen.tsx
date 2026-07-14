@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router, type Href, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,13 +21,16 @@ export default function SettingsScreen() {
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [deletingCategoryId, setDeletingCategoryId] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const hasLoadedCategoriesRef = useRef(false);
 
-  const loadCategories = useCallback(async () => {
+  const loadCategories = useCallback(async (mode: 'initial' | 'silent') => {
     setCategoryError('');
-    setIsLoadingCategories(true);
+
+    if (mode === 'initial') setIsLoadingCategories(true);
 
     try {
       setCategories(await listCategories());
+      hasLoadedCategoriesRef.current = true;
     } catch (error) {
       setCategoryError(getErrorMessage(error));
     } finally {
@@ -37,7 +40,7 @@ export default function SettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadCategories();
+      loadCategories(hasLoadedCategoriesRef.current ? 'silent' : 'initial');
     }, [loadCategories]),
   );
 

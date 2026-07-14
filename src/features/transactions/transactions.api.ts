@@ -2,20 +2,10 @@ import { requireCurrentUserId } from '@/features/auth/auth.api';
 import { listCategories } from '@/features/categories/categories.api';
 import { supabase } from '@/lib/supabase';
 
-import type { TransactionDetails, TransactionInput, TransactionListItem } from './types';
+import { refreshTransactionsCache } from './transactions.cache';
+import type { TransactionDetails, TransactionInput } from './types';
 
-export async function listTransactions() {
-  const userId = await requireCurrentUserId();
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('id, amount, type, description, transaction_date, categories(name, color)')
-    .eq('user_id', userId)
-    .order('transaction_date', { ascending: false })
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return (data ?? []) as TransactionListItem[];
-}
+export { listTransactions } from './transactions.cache';
 
 export async function getTransactionEditorData(transactionId: string) {
   const userId = await requireCurrentUserId();
@@ -49,6 +39,7 @@ export async function createTransaction(input: TransactionInput) {
   });
 
   if (error) throw error;
+  await refreshTransactionsCache(userId);
 }
 
 export async function updateTransaction(transactionId: string, input: TransactionInput) {
@@ -67,6 +58,7 @@ export async function updateTransaction(transactionId: string, input: Transactio
     .eq('user_id', userId);
 
   if (error) throw error;
+  await refreshTransactionsCache(userId);
 }
 
 export async function deleteTransaction(transactionId: string) {
@@ -78,4 +70,5 @@ export async function deleteTransaction(transactionId: string) {
     .eq('user_id', userId);
 
   if (error) throw error;
+  await refreshTransactionsCache(userId);
 }

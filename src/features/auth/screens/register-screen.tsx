@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -33,6 +34,8 @@ const colors = {
   success: '#60724E',
   white: '#FFFFFF',
 };
+
+const homeAvatar = require('../../../../assets/images/pfp_casa.webp');
 
 export default function RegisterScreen() {
   const [userName, setUserName] = useState('');
@@ -108,7 +111,7 @@ export default function RegisterScreen() {
             <View style={styles.content}>
               <View style={styles.hero}>
                 <View style={styles.avatarOrnament}>
-                  <View style={styles.avatarPlaceholder} />
+                  <Image source={homeAvatar} style={styles.avatarImage} />
                   <View style={[styles.avatarLeaf, styles.avatarLeafLeft]} />
                   <View style={[styles.avatarLeaf, styles.avatarLeafRight]} />
                 </View>
@@ -298,7 +301,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.one,
     width: 138,
   },
-  avatarPlaceholder: {
+  avatarImage: {
     backgroundColor: 'rgba(255, 253, 248, 0.82)',
     borderColor: 'rgba(133, 149, 109, 0.28)',
     borderRadius: 48,
@@ -308,6 +311,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
+    resizeMode: 'cover',
     width: 96,
   },
   avatarLeaf: {

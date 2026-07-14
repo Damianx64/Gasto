@@ -1,33 +1,11 @@
 import { requireCurrentUserId } from '@/features/auth/auth.api';
+import { refreshTransactionsCache } from '@/features/transactions/transactions.cache';
 import { supabase } from '@/lib/supabase';
 
-import type { Category, CategoryInput } from './types';
+import { refreshCategoriesCache } from './categories.cache';
+import type { CategoryInput } from './types';
 
-export async function listCategories() {
-  const userId = await requireCurrentUserId();
-  const { data, error } = await supabase
-    .from('categories')
-    .select('id, name, type, color')
-    .eq('user_id', userId)
-    .order('type', { ascending: true })
-    .order('name', { ascending: true });
-
-  if (error) throw error;
-  return (data ?? []) as Category[];
-}
-
-export async function getCategory(categoryId: string) {
-  const userId = await requireCurrentUserId();
-  const { data, error } = await supabase
-    .from('categories')
-    .select('id, name, type, color')
-    .eq('id', categoryId)
-    .eq('user_id', userId)
-    .single();
-
-  if (error) throw error;
-  return data as Category;
-}
+export { getCategory, listCategories } from './categories.cache';
 
 export async function createCategory(input: CategoryInput) {
   const userId = await requireCurrentUserId();
@@ -42,6 +20,7 @@ export async function createCategory(input: CategoryInput) {
   });
 
   if (error) throw error;
+  await refreshCategoriesCache(userId);
 }
 
 export async function updateCategory(categoryId: string, input: CategoryInput) {
@@ -58,6 +37,7 @@ export async function updateCategory(categoryId: string, input: CategoryInput) {
     .eq('user_id', userId);
 
   if (error) throw error;
+  await Promise.all([refreshCategoriesCache(userId), refreshTransactionsCache(userId)]);
 }
 
 export async function deleteCategory(categoryId: string) {
@@ -77,4 +57,5 @@ export async function deleteCategory(categoryId: string) {
     .eq('user_id', userId);
 
   if (error) throw error;
+  await Promise.all([refreshCategoriesCache(userId), refreshTransactionsCache(userId)]);
 }
