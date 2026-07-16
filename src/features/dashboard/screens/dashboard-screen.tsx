@@ -150,7 +150,7 @@ function TrendLabel({ inverted, trend }: { inverted?: boolean; trend: Trend | nu
   if (!trend) {
     return (
       <DashboardText type="small" themeColor="textSecondary" style={styles.trendText}>
-        — Sin comparativa
+        — Sin datos
       </DashboardText>
     );
   }
@@ -305,7 +305,7 @@ export default function DashboardScreen() {
                     themeColor="textSecondary"
                     numberOfLines={1}
                     style={styles.greetingSubtitleText}>
-                    Ahorro presente, futuro sonriente
+                    Pa´eso chambeo
                   </DashboardText>
                   <SymbolView
                     name={{ android: 'eco', ios: 'leaf', web: 'eco' }}
@@ -870,25 +870,28 @@ const styles = StyleSheet.create({
   incomeCard: {
     backgroundColor: '#F8F6EE',
     borderColor: '#DDDCCB',
+    overflow: 'visible',
   },
   expenseCard: {
     backgroundColor: palette.expenseBackground,
     borderColor: palette.expenseBorder,
+    overflow: 'visible',
   },
   incomeDecoration: {
-    bottom: -10,
-    height: 76,
-    left: -15,
+    bottom: -33,
+    height: 61,
+    left: -5,
     opacity: 0.92,
     position: 'absolute',
-    width: 110,
+    width: 88,
+    transform: [{ rotate: '30deg' }],
   },
   expenseDecoration: {
-    bottom: -8,
+    bottom: -1,
     height: 112,
     opacity: 0.88,
     position: 'absolute',
-    right: -2,
+    right: -10,
     width: 57,
   },
   summaryTitleRow: {
@@ -941,7 +944,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   trendText: {
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
   },
   sectionCard: {
@@ -995,7 +998,7 @@ const styles = StyleSheet.create({
   categoriesRow: {
     alignItems: 'stretch',
     flexDirection: 'row',
-    minHeight: 132,
+    minHeight: 120,
     zIndex: 1,
   },
   categoryItem: {

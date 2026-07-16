@@ -82,6 +82,15 @@ export default function MainTabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <TabIcon android="swap_horiz" color={color} ios="arrow.left.arrow.right" size={size} />
           ),
+          tabBarLabel: ({ color }) => (
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+              numberOfLines={1}
+              style={[styles.tabBarLabel, { color }]}>
+              Movimientos
+            </Text>
+          ),
           title: 'Movimientos',
         }}
       />
