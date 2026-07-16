@@ -20,6 +20,7 @@
 | `name` | `text` |  |
 | `type` | `transaction_type` |  |
 | `color` | `text` |  Nullable |
+| `icon_key` | `text` |  Nullable |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
 

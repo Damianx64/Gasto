@@ -10,6 +10,7 @@ import { signOut } from '@/features/auth/auth.api';
 import { getErrorMessage } from '@/lib/errors';
 
 import { deleteCategory, listCategories } from '../categories.api';
+import { CategoryIcon } from '../components/category-icon';
 import type { Category } from '../types';
 
 const newCategoryHref = '/category/new' as Href;
@@ -135,11 +136,11 @@ export default function SettingsScreen() {
               <View style={styles.categoryList}>
                 {categories.map((category) => (
                   <View key={category.id} style={styles.categoryItem}>
-                    <View
-                      style={[
-                        styles.categoryColor,
-                        { backgroundColor: category.color ?? '#9ca3af' },
-                      ]}
+                    <CategoryIcon
+                      color={category.color}
+                      iconKey={category.icon_key}
+                      size={36}
+                      symbolSize={20}
                     />
                     <View style={styles.categoryInfo}>
                       <ThemedText type="smallBold">{category.name}</ThemedText>
@@ -253,11 +254,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.two,
     padding: Spacing.three,
-  },
-  categoryColor: {
-    borderRadius: 8,
-    height: 16,
-    width: 16,
   },
   categoryInfo: {
     flex: 1,

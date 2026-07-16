@@ -68,7 +68,7 @@ async function clearCategoriesCache(userId: string) {
 async function fetchCategories(userId: string) {
   const { data, error } = await supabase
     .from('categories')
-    .select('id, name, type, color')
+    .select('id, name, type, color, icon_key')
     .eq('user_id', userId)
     .order('type', { ascending: true })
     .order('name', { ascending: true });

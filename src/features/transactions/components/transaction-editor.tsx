@@ -21,6 +21,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { listCategories } from '@/features/categories/categories.api';
+import { CategoryIcon } from '@/features/categories/components/category-icon';
 import type { Category } from '@/features/categories/types';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -270,6 +271,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                         !categoryId && styles.categoryButtonActive,
                         pressed && styles.buttonPressed,
                       ]}>
+                      <CategoryIcon color="#9ca3af" size={24} symbolSize={14} />
                       <ThemedText
                         type="smallBold"
                         style={!categoryId && styles.categoryButtonTextActive}>
@@ -287,6 +289,12 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                           category.id === categoryId && styles.categoryButtonActive,
                           pressed && styles.buttonPressed,
                         ]}>
+                        <CategoryIcon
+                          color={category.color}
+                          iconKey={category.icon_key}
+                          size={24}
+                          symbolSize={14}
+                        />
                         <ThemedText
                           type="smallBold"
                           style={category.id === categoryId && styles.categoryButtonTextActive}>
@@ -486,10 +494,13 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   categoryButton: {
+    alignItems: 'center',
     backgroundColor: '#f3f4f6',
     borderColor: '#d1d5db',
     borderRadius: 8,
     borderWidth: 1,
+    flexDirection: 'row',
+    gap: Spacing.one,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },

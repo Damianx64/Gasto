@@ -6,6 +6,7 @@ import type {
 export type CategoryExpense = {
   amount: number;
   color: string;
+  icon_key: string | null;
   name: string;
   percentage: number;
 };
@@ -91,6 +92,7 @@ export function buildReportsSummary(
     categoryTotals.set(name, {
       amount: (savedCategory?.amount ?? 0) + amount,
       color: category?.color || savedCategory?.color || fallbackCategoryColor,
+      icon_key: category?.icon_key || savedCategory?.icon_key || null,
       name,
     });
   }

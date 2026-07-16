@@ -1,4 +1,4 @@
-import type { TransactionListItem } from './types';
+import type { TransactionCategory, TransactionListItem } from './types';
 
 const currencyFormatter = new Intl.NumberFormat('es-MX', {
   currency: 'MXN',
@@ -19,12 +19,18 @@ export function formatTransactionDate(date: string) {
   return dateFormatter.format(new Date(`${date}T00:00:00`));
 }
 
-export function getTransactionCategoryName(transaction: TransactionListItem) {
+export function getTransactionCategory(
+  transaction: TransactionListItem,
+): TransactionCategory | null {
   if (Array.isArray(transaction.categories)) {
-    return transaction.categories[0]?.name ?? 'Sin categoría';
+    return transaction.categories[0] ?? null;
   }
 
-  return transaction.categories?.name ?? 'Sin categoría';
+  return transaction.categories;
+}
+
+export function getTransactionCategoryName(transaction: TransactionListItem) {
+  return getTransactionCategory(transaction)?.name ?? 'Sin categoría';
 }
 
 export function getToday() {

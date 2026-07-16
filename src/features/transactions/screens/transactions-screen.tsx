@@ -13,9 +13,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { CategoryIcon } from '@/features/categories/components/category-icon';
 import { getErrorMessage } from '@/lib/errors';
 
-import { formatCurrency, getTransactionCategoryName } from '../formatters';
+import {
+  formatCurrency,
+  getTransactionCategory,
+  getTransactionCategoryName,
+} from '../formatters';
 import { listTransactions } from '../transactions.api';
 import type { TransactionListItem } from '../types';
 
@@ -158,6 +163,7 @@ export default function TransactionsScreen() {
 
   function renderTransaction({ item }: { item: TransactionListItem }) {
     const isIncome = item.type === 'income';
+    const category = getTransactionCategory(item);
 
     return (
       <Pressable
@@ -165,6 +171,12 @@ export default function TransactionsScreen() {
         accessibilityRole="button"
         onPress={() => handleTransactionPress(item.id)}
         style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}>
+        <CategoryIcon
+          color={category?.color}
+          iconKey={category?.icon_key}
+          size={36}
+          symbolSize={20}
+        />
         <View style={styles.itemMain}>
           <ThemedText type="smallBold">
             {item.description || getTransactionCategoryName(item)}

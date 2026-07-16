@@ -68,7 +68,7 @@ async function clearTransactionsCache(userId: string) {
 async function fetchTransactions(userId: string) {
   const { data, error } = await supabase
     .from('transactions')
-    .select('id, amount, type, description, transaction_date, categories(name, color)')
+    .select('id, amount, type, description, transaction_date, categories(name, color, icon_key)')
     .eq('user_id', userId)
     .order('transaction_date', { ascending: false })
     .order('created_at', { ascending: false });

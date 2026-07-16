@@ -3,6 +3,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { CategoryIcon } from '@/features/categories/components/category-icon';
 import type { CategoryExpense } from '@/features/reports/report-data';
 import { formatCurrency } from '@/features/transactions/formatters';
 import { useTheme } from '@/hooks/use-theme';
@@ -53,6 +54,7 @@ function getDisplayedCategories(categories: CategoryExpense[]) {
     {
       amount,
       color: otherCategoriesColor,
+      icon_key: null,
       name: 'Otras categorías',
       percentage,
     },
@@ -117,7 +119,12 @@ export function CategoryExpensesChart({
                 accessibilityLabel={`${category.name}: ${formatCurrency(category.amount)}, ${category.percentage.toFixed(0)} por ciento`}
                 key={category.name}
                 style={styles.legendItem}>
-                <View style={[styles.dot, { backgroundColor: category.color }]} />
+                <CategoryIcon
+                  color={category.color}
+                  iconKey={category.icon_key}
+                  size={28}
+                  symbolSize={16}
+                />
                 <View style={styles.legendText}>
                   <View style={styles.legendHeader}>
                     <ThemedText type="smallBold" numberOfLines={1} style={styles.categoryName}>
@@ -164,15 +171,9 @@ const styles = StyleSheet.create({
     minWidth: 150,
   },
   legendItem: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flexDirection: 'row',
     gap: Spacing.two,
-  },
-  dot: {
-    borderRadius: 5,
-    height: 10,
-    marginTop: 5,
-    width: 10,
   },
   legendText: {
     flex: 1,

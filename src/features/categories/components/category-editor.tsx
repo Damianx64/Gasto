@@ -19,7 +19,13 @@ import type { TransactionType } from '@/features/transactions/types';
 import { getErrorMessage } from '@/lib/errors';
 
 import { createCategory, getCategory, updateCategory } from '../categories.api';
-import { CATEGORY_COLORS } from '../constants';
+import {
+  CATEGORY_COLORS,
+  CATEGORY_ICONS,
+  isCategoryIconKey,
+  type CategoryIconKey,
+} from '../constants';
+import { CategoryIcon } from './category-icon';
 
 type CategoryEditorProps = {
   categoryId?: string;
@@ -30,6 +36,7 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<TransactionType>('expense');
   const [color, setColor] = useState<string>(CATEGORY_COLORS[0]);
+  const [iconKey, setIconKey] = useState<CategoryIconKey | null>(null);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(isEditing);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,6 +51,7 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
         setName(category.name);
         setType(category.type);
         setColor(category.color ?? CATEGORY_COLORS[0]);
+        setIconKey(isCategoryIconKey(category.icon_key) ? category.icon_key : null);
       } catch (error) {
         setMessage(getErrorMessage(error));
       } finally {
@@ -66,10 +74,15 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
       return;
     }
 
+    if (!iconKey) {
+      setMessage('Selecciona un icono para la categoría.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const input = { color, name: trimmedName, type };
+      const input = { color, iconKey, name: trimmedName, type };
 
       if (categoryId) {
         await updateCategory(categoryId, input);
@@ -118,6 +131,39 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
                     style={styles.input}
                     value={name}
                   />
+                </View>
+
+                <View style={styles.field}>
+                  <ThemedText type="smallBold">Icono</ThemedText>
+                  <View style={styles.iconList}>
+                    {CATEGORY_ICONS.map((option) => {
+                      const isSelected = iconKey === option.key;
+
+                      return (
+                        <Pressable
+                          accessibilityLabel={`Icono ${option.label}`}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: isSelected }}
+                          key={option.key}
+                          onPress={() => setIconKey(option.key)}
+                          style={({ pressed }) => [
+                            styles.iconButton,
+                            isSelected && styles.iconButtonActive,
+                            pressed && styles.buttonPressed,
+                          ]}>
+                          <CategoryIcon
+                            color={color}
+                            iconKey={option.key}
+                            size={36}
+                            symbolSize={20}
+                          />
+                          <ThemedText type="small" numberOfLines={1} style={styles.iconLabel}>
+                            {option.label}
+                          </ThemedText>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
 
                 <View style={styles.field}>
@@ -277,6 +323,32 @@ const styles = StyleSheet.create({
   },
   colorButtonActive: {
     borderColor: '#111827',
+  },
+  iconList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  iconButton: {
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: Spacing.one,
+    paddingHorizontal: Spacing.one,
+    paddingVertical: Spacing.two,
+    width: 76,
+  },
+  iconButtonActive: {
+    borderColor: '#111827',
+    borderWidth: 2,
+    paddingHorizontal: 3,
+    paddingVertical: 7,
+  },
+  iconLabel: {
+    fontSize: 11,
+    textAlign: 'center',
   },
   errorText: {
     color: '#dc2626',

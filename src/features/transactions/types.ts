@@ -2,6 +2,7 @@ export type TransactionType = 'income' | 'expense';
 
 export type TransactionCategory = {
   color: string | null;
+  icon_key: string | null;
   name: string;
 };
 

@@ -13,6 +13,7 @@ export async function createCategory(input: CategoryInput) {
   const { error } = await supabase.from('categories').insert({
     color: input.color,
     created_at: now,
+    icon_key: input.iconKey,
     name: input.name,
     type: input.type,
     updated_at: now,
@@ -29,6 +30,7 @@ export async function updateCategory(categoryId: string, input: CategoryInput) {
     .from('categories')
     .update({
       color: input.color,
+      icon_key: input.iconKey,
       name: input.name,
       type: input.type,
       updated_at: new Date().toISOString(),

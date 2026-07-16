@@ -15,22 +15,22 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/features/auth/use-auth-session';
+import { CategoryIcon } from '@/features/categories/components/category-icon';
 import {
   formatCurrency,
   formatTransactionDate,
+  getTransactionCategory,
   getTransactionCategoryName,
 } from '@/features/transactions/formatters';
 import { listTransactions } from '@/features/transactions/transactions.api';
-import type {
-  TransactionCategory,
-  TransactionListItem,
-} from '@/features/transactions/types';
+import type { TransactionListItem } from '@/features/transactions/types';
 import { useTheme } from '@/hooks/use-theme';
 import { getErrorMessage } from '@/lib/errors';
 
 type CategorySummary = {
   amount: number;
   color: string;
+  icon_key: string | null;
   name: string;
   percentage: number;
 };
@@ -52,14 +52,6 @@ function getMonthKey(date: Date) {
 function getTransactionAmount(transaction: TransactionListItem) {
   const amount = Number(transaction.amount);
   return Number.isFinite(amount) ? amount : 0;
-}
-
-function getCategory(transaction: TransactionListItem): TransactionCategory | null {
-  if (Array.isArray(transaction.categories)) {
-    return transaction.categories[0] ?? null;
-  }
-
-  return transaction.categories;
 }
 
 function summarizeMonth(transactions: TransactionListItem[], monthKey: string): MonthSummary {
@@ -192,13 +184,14 @@ export default function DashboardScreen() {
         continue;
       }
 
-      const category = getCategory(transaction);
+      const category = getTransactionCategory(transaction);
       const name = category?.name ?? 'Sin categoría';
       const savedCategory = categoryMap.get(name);
 
       categoryMap.set(name, {
         amount: (savedCategory?.amount ?? 0) + amount,
         color: category?.color || savedCategory?.color || '#8B919B',
+        icon_key: category?.icon_key || savedCategory?.icon_key || null,
         name,
       });
     }
@@ -406,8 +399,11 @@ export default function DashboardScreen() {
                             },
                           ]}>
                           <View style={styles.categoryNameRow}>
-                            <View
-                              style={[styles.categoryDot, { backgroundColor: category.color }]}
+                            <CategoryIcon
+                              color={category.color}
+                              iconKey={category.icon_key}
+                              size={24}
+                              symbolSize={14}
                             />
                             <ThemedText
                               type="smallBold"
@@ -448,6 +444,7 @@ export default function DashboardScreen() {
                     <View>
                       {dashboard.recentTransactions.map((transaction, index) => {
                         const isIncome = transaction.type === 'income';
+                        const category = getTransactionCategory(transaction);
 
                         return (
                           <Pressable
@@ -463,6 +460,12 @@ export default function DashboardScreen() {
                               },
                               pressed && styles.transactionPressed,
                             ]}>
+                            <CategoryIcon
+                              color={category?.color}
+                              iconKey={category?.icon_key}
+                              size={34}
+                              symbolSize={19}
+                            />
                             <View style={styles.transactionMain}>
                               <ThemedText type="smallBold" numberOfLines={1}>
                                 {transaction.description || getTransactionCategoryName(transaction)}
@@ -687,11 +690,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.one,
     maxWidth: '100%',
-  },
-  categoryDot: {
-    borderRadius: 4,
-    height: 7,
-    width: 7,
   },
   categoryName: {
     flexShrink: 1,
