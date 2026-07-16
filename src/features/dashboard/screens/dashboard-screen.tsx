@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { router, type Href, useFocusEffect } from 'expo-router';
 import {
@@ -11,9 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
+import { ThemedText, type ThemedTextProps } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/features/auth/use-auth-session';
 import { CategoryIcon } from '@/features/categories/components/category-icon';
 import {
@@ -24,8 +25,32 @@ import {
 } from '@/features/transactions/formatters';
 import { listTransactions } from '@/features/transactions/transactions.api';
 import type { TransactionListItem } from '@/features/transactions/types';
-import { useTheme } from '@/hooks/use-theme';
 import { getErrorMessage } from '@/lib/errors';
+
+const palette = {
+  background: '#FBF8F1',
+  border: '#E4DAC9',
+  cream: '#F6F0E5',
+  expenseBackground: '#FBF2E8',
+  expenseBorder: '#E9D4BE',
+  ink: '#303A29',
+  muted: '#77756E',
+  olive: '#617149',
+  oliveDark: '#4E5C39',
+  olivePale: '#E5E7DB',
+  surface: '#FEFCF7',
+  terracotta: '#C45D32',
+  white: '#FFFDF8',
+} as const;
+
+const decorations = {
+  avatar: require('../../../../assets/decorations/hojas_icono.webp'),
+  balance: require('../../../../assets/decorations/flores_balance.webp'),
+  categories: require('../../../../assets/decorations/flores_vertical_1.webp'),
+  expenses: require('../../../../assets/decorations/planta_gastos.webp'),
+  income: require('../../../../assets/decorations/hojas_ingresos.webp'),
+  movements: require('../../../../assets/decorations/planta_vertical_1.webp'),
+};
 
 type CategorySummary = {
   amount: number;
@@ -44,6 +69,23 @@ type Trend = {
   direction: 'down' | 'flat' | 'up';
   percentage: number;
 };
+
+function DashboardText({ style, themeColor, ...props }: ThemedTextProps) {
+  return (
+    <ThemedText
+      {...props}
+      style={[
+        styles.dashboardText,
+        themeColor === 'textSecondary' && styles.secondaryText,
+        style,
+      ]}
+    />
+  );
+}
+
+function getSoftCategoryColor(color?: string | null) {
+  return color && /^#[0-9A-F]{6}$/i.test(color) ? `${color}22` : palette.olivePale;
+}
 
 function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -107,9 +149,9 @@ function getInitials(name: string) {
 function TrendLabel({ inverted, trend }: { inverted?: boolean; trend: Trend | null }) {
   if (!trend) {
     return (
-      <ThemedText type="small" themeColor="textSecondary" style={styles.trendText}>
+      <DashboardText type="small" themeColor="textSecondary" style={styles.trendText}>
         — Sin comparativa
-      </ThemedText>
+      </DashboardText>
     );
   }
 
@@ -118,16 +160,15 @@ function TrendLabel({ inverted, trend }: { inverted?: boolean; trend: Trend | nu
   const arrow = trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '—';
 
   return (
-    <ThemedText
+    <DashboardText
       type="smallBold"
-      style={[styles.trendText, { color: isPositive ? '#16835C' : '#C24B52' }]}>
+      style={[styles.trendText, { color: isPositive ? palette.olive : palette.terracotta }]}>
       {arrow} {trend.percentage.toFixed(1)}%
-    </ThemedText>
+    </DashboardText>
   );
 }
 
 export default function DashboardScreen() {
-  const theme = useTheme();
   const { session } = useAuthSession();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
@@ -198,7 +239,7 @@ export default function DashboardScreen() {
 
     const categories = [...categoryMap.values()]
       .sort((left, right) => right.amount - left.amount)
-      .slice(0, 4)
+      .slice(0, 3)
       .map((category) => ({
         ...category,
         percentage:
@@ -216,8 +257,8 @@ export default function DashboardScreen() {
   }, [transactions]);
 
   const cardColors = {
-    backgroundColor: theme.background,
-    borderColor: theme.backgroundSelected,
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
   };
 
   function openTransaction(transactionId: string) {
@@ -233,25 +274,45 @@ export default function DashboardScreen() {
             <RefreshControl
               onRefresh={() => loadDashboard('refresh')}
               refreshing={isRefreshing}
-              tintColor={theme.text}
+              tintColor={palette.olive}
             />
           }
           showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
             <View style={styles.header}>
-              <View style={[styles.avatar, { backgroundColor: theme.backgroundElement }]}>
-                <ThemedText type="smallBold" style={styles.avatarText}>
-                  {getInitials(userName)}
-                </ThemedText>
+              <View style={styles.avatarCluster}>
+                <View style={styles.avatar}>
+                  <DashboardText type="smallBold" style={styles.avatarText}>
+                    {getInitials(userName)}
+                  </DashboardText>
+                </View>
+                <Image
+                  accessible={false}
+                  contentFit="contain"
+                  pointerEvents="none"
+                  source={decorations.avatar}
+                  style={styles.avatarDecoration}
+                />
               </View>
 
               <View style={styles.greeting}>
-                <ThemedText style={styles.greetingTitle} numberOfLines={1}>
+                <DashboardText style={styles.greetingTitle} numberOfLines={1}>
                   Hola, {userName}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Ahorro presente, futuro sonriente
-                </ThemedText>
+                </DashboardText>
+                <View style={styles.greetingSubtitle}>
+                  <DashboardText
+                    type="small"
+                    themeColor="textSecondary"
+                    numberOfLines={1}
+                    style={styles.greetingSubtitleText}>
+                    Ahorro presente, futuro sonriente
+                  </DashboardText>
+                  <SymbolView
+                    name={{ android: 'eco', ios: 'leaf', web: 'eco' }}
+                    size={13}
+                    tintColor={palette.olive}
+                  />
+                </View>
               </View>
 
               <Pressable
@@ -260,30 +321,30 @@ export default function DashboardScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ disabled: true }}
                 disabled
-                style={[styles.iconButton, cardColors]}>
+                style={styles.iconButton}>
                 <SymbolView
                   name={{ android: 'notifications', ios: 'bell', web: 'notifications' }}
                   size={23}
-                  tintColor={theme.text}
+                  tintColor={palette.oliveDark}
                 />
               </Pressable>
             </View>
 
             {isLoading ? (
               <View style={styles.loadingState}>
-                <ActivityIndicator color={theme.text} />
-                <ThemedText type="small" themeColor="textSecondary">
+                <ActivityIndicator color={palette.olive} />
+                <DashboardText type="small" themeColor="textSecondary">
                   Preparando tu resumen...
-                </ThemedText>
+                </DashboardText>
               </View>
             ) : errorMessage ? (
               <View style={[styles.stateCard, cardColors]}>
-                <ThemedText type="smallBold" style={styles.errorText}>
+                <DashboardText type="smallBold" style={styles.errorText}>
                   No pudimos cargar tu resumen
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.stateText}>
+                </DashboardText>
+                <DashboardText type="small" themeColor="textSecondary" style={styles.stateText}>
                   {errorMessage}
-                </ThemedText>
+                </DashboardText>
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => loadDashboard('initial')}
@@ -291,98 +352,164 @@ export default function DashboardScreen() {
                     styles.primaryButton,
                     pressed && styles.buttonPressed,
                   ]}>
-                  <ThemedText type="smallBold" style={styles.primaryButtonText}>
+                  <DashboardText type="smallBold" style={styles.primaryButtonText}>
                     Reintentar
-                  </ThemedText>
+                  </DashboardText>
                 </Pressable>
               </View>
             ) : (
               <>
-                <View style={[styles.balanceCard, cardColors]}>
-                  <View style={styles.balanceHeader}>
-                    <ThemedText type="smallBold" style={styles.sectionEyebrow}>
-                      Balance total
-                    </ThemedText>
+                <View style={styles.balanceCard}>
+                  <Image
+                    accessible={false}
+                    contentFit="contain"
+                    pointerEvents="none"
+                    source={decorations.balance}
+                    style={styles.balanceDecoration}
+                  />
+                  <View style={styles.balanceContent}>
+                    <View style={styles.balanceHeader}>
+                      <DashboardText style={styles.sectionEyebrow}>Balance total</DashboardText>
+                      <Pressable
+                        accessibilityLabel={
+                          isBalanceVisible ? 'Ocultar balance' : 'Mostrar balance'
+                        }
+                        accessibilityRole="button"
+                        hitSlop={10}
+                        onPress={() => setIsBalanceVisible((visible) => !visible)}
+                        style={({ pressed }) => pressed && styles.buttonPressed}>
+                        <SymbolView
+                          name={{
+                            android: isBalanceVisible ? 'visibility' : 'visibility_off',
+                            ios: isBalanceVisible ? 'eye' : 'eye.slash',
+                            web: isBalanceVisible ? 'visibility' : 'visibility_off',
+                          }}
+                          size={20}
+                          tintColor={palette.white}
+                        />
+                      </Pressable>
+                    </View>
+
+                    <DashboardText
+                      style={styles.balanceAmount}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit>
+                      {isBalanceVisible ? formatCurrency(dashboard.balance) : '••••••'}
+                    </DashboardText>
+
                     <Pressable
-                      accessibilityLabel={
-                        isBalanceVisible ? 'Ocultar balance' : 'Mostrar balance'
-                      }
                       accessibilityRole="button"
-                      hitSlop={10}
-                      onPress={() => setIsBalanceVisible((visible) => !visible)}
-                      style={({ pressed }) => pressed && styles.buttonPressed}>
+                      onPress={() => router.push('/transactions')}
+                      style={({ pressed }) => [
+                        styles.detailButton,
+                        pressed && styles.buttonPressed,
+                      ]}>
+                      <DashboardText type="smallBold" style={styles.detailButtonText}>
+                        Ver detalle
+                      </DashboardText>
                       <SymbolView
                         name={{
-                          android: isBalanceVisible ? 'visibility' : 'visibility_off',
-                          ios: isBalanceVisible ? 'eye' : 'eye.slash',
-                          web: isBalanceVisible ? 'visibility' : 'visibility_off',
+                          android: 'chevron_right',
+                          ios: 'chevron.right',
+                          web: 'chevron_right',
                         }}
-                        size={21}
-                        tintColor={theme.textSecondary}
+                        size={17}
+                        tintColor={palette.white}
                       />
                     </Pressable>
                   </View>
-
-                  <ThemedText style={styles.balanceAmount} numberOfLines={1} adjustsFontSizeToFit>
-                    {isBalanceVisible ? formatCurrency(dashboard.balance) : '••••••'}
-                  </ThemedText>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => router.push('/transactions')}
-                    style={({ pressed }) => [
-                      styles.outlineButton,
-                      { borderColor: theme.backgroundSelected },
-                      pressed && styles.buttonPressed,
-                    ]}>
-                    <ThemedText type="smallBold">Ver detalle</ThemedText>
-                    <SymbolView
-                      name={{ android: 'chevron_right', ios: 'chevron.right', web: 'chevron_right' }}
-                      size={17}
-                      tintColor={theme.text}
-                    />
-                  </Pressable>
                 </View>
 
                 <View style={styles.summaryRow}>
-                  <View style={[styles.summaryCard, cardColors]}>
-                    <ThemedText type="smallBold">Ingresos</ThemedText>
-                    <ThemedText style={styles.summaryAmount} numberOfLines={1} adjustsFontSizeToFit>
+                  <View style={[styles.summaryCard, styles.incomeCard]}>
+                    <Image
+                      accessible={false}
+                      contentFit="contain"
+                      pointerEvents="none"
+                      source={decorations.income}
+                      style={styles.incomeDecoration}
+                    />
+                    <View style={styles.summaryTitleRow}>
+                      <DashboardText style={styles.summaryTitle}>Ingresos</DashboardText>
+                      <View style={[styles.summaryIcon, styles.incomeIcon]}>
+                        <SymbolView
+                          name={{ android: 'eco', ios: 'leaf', web: 'eco' }}
+                          size={20}
+                          tintColor={palette.white}
+                        />
+                      </View>
+                    </View>
+                    <DashboardText
+                      style={[styles.summaryAmount, styles.incomeAmount]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit>
                       {formatCurrency(dashboard.currentSummary.income)}
-                    </ThemedText>
+                    </DashboardText>
                     <View style={styles.summaryFooter}>
-                      <ThemedText type="small" themeColor="textSecondary">
+                      <DashboardText type="small" themeColor="textSecondary" style={styles.periodText}>
                         Este mes
-                      </ThemedText>
+                      </DashboardText>
                       <TrendLabel trend={dashboard.incomeTrend} />
                     </View>
                   </View>
 
-                  <View style={[styles.summaryCard, cardColors]}>
-                    <ThemedText type="smallBold">Gastos</ThemedText>
-                    <ThemedText style={styles.summaryAmount} numberOfLines={1} adjustsFontSizeToFit>
+                  <View style={[styles.summaryCard, styles.expenseCard]}>
+                    <Image
+                      accessible={false}
+                      contentFit="contain"
+                      pointerEvents="none"
+                      source={decorations.expenses}
+                      style={styles.expenseDecoration}
+                    />
+                    <View style={styles.summaryTitleRow}>
+                      <DashboardText style={styles.summaryTitle}>Gastos</DashboardText>
+                      <View style={[styles.summaryIcon, styles.expenseIcon]}>
+                        <SymbolView
+                          name={{ android: 'eco', ios: 'leaf', web: 'eco' }}
+                          size={20}
+                          tintColor={palette.white}
+                        />
+                      </View>
+                    </View>
+                    <DashboardText
+                      style={[styles.summaryAmount, styles.expenseAmount]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit>
                       {formatCurrency(dashboard.currentSummary.expenses)}
-                    </ThemedText>
+                    </DashboardText>
                     <View style={styles.summaryFooter}>
-                      <ThemedText type="small" themeColor="textSecondary">
+                      <DashboardText type="small" themeColor="textSecondary" style={styles.periodText}>
                         Este mes
-                      </ThemedText>
+                      </DashboardText>
                       <TrendLabel inverted trend={dashboard.expenseTrend} />
                     </View>
                   </View>
                 </View>
 
                 <View style={[styles.sectionCard, cardColors]}>
+                  <Image
+                    accessible={false}
+                    contentFit="contain"
+                    pointerEvents="none"
+                    source={decorations.categories}
+                    style={styles.categoriesDecoration}
+                  />
                   <View style={styles.sectionHeader}>
-                    <ThemedText style={styles.sectionTitle}>Gastos por categoría</ThemedText>
+                    <DashboardText style={styles.sectionTitle}>Gastos por categoría</DashboardText>
                     <Pressable
                       accessibilityHint="Esta opción estará disponible próximamente"
                       accessibilityRole="button"
                       accessibilityState={{ disabled: true }}
-                      disabled>
-                      <ThemedText type="small" themeColor="textSecondary">
+                      disabled
+                      style={styles.sectionAction}>
+                      <DashboardText type="small" style={styles.sectionActionText}>
                         Ver todas
-                      </ThemedText>
+                      </DashboardText>
+                      <SymbolView
+                        name={{ android: 'chevron_right', ios: 'chevron.right', web: 'chevron_right' }}
+                        size={16}
+                        tintColor={palette.muted}
+                      />
                     </Pressable>
                   </View>
 
@@ -394,57 +521,73 @@ export default function DashboardScreen() {
                           style={[
                             styles.categoryItem,
                             index > 0 && {
-                              borderLeftColor: theme.backgroundSelected,
+                              borderLeftColor: palette.border,
                               borderLeftWidth: StyleSheet.hairlineWidth,
                             },
                           ]}>
-                          <View style={styles.categoryNameRow}>
-                            <CategoryIcon
-                              color={category.color}
-                              iconKey={category.icon_key}
-                              size={24}
-                              symbolSize={14}
-                            />
-                            <ThemedText
-                              type="smallBold"
-                              numberOfLines={1}
-                              style={styles.categoryName}>
-                              {category.name}
-                            </ThemedText>
-                          </View>
-                          <ThemedText type="small" numberOfLines={1} style={styles.categoryAmount}>
+                          <CategoryIcon
+                            backgroundColor={getSoftCategoryColor(category.color)}
+                            iconColor={category.color || palette.olive}
+                            iconKey={category.icon_key}
+                            size={48}
+                            symbolSize={23}
+                          />
+                          <DashboardText
+                            type="smallBold"
+                            numberOfLines={1}
+                            style={styles.categoryName}>
+                            {category.name}
+                          </DashboardText>
+                          <DashboardText type="small" numberOfLines={1} style={styles.categoryAmount}>
                             {formatCurrency(category.amount)}
-                          </ThemedText>
-                          <ThemedText type="small" themeColor="textSecondary">
+                          </DashboardText>
+                          <DashboardText
+                            type="smallBold"
+                            style={[styles.categoryPercentage, { color: category.color || palette.olive }]}>
                             {category.percentage.toFixed(0)}%
-                          </ThemedText>
+                          </DashboardText>
                         </View>
                       ))}
                     </View>
                   ) : (
-                    <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+                    <DashboardText type="small" themeColor="textSecondary" style={styles.emptyText}>
                       Aún no hay gastos registrados este mes.
-                    </ThemedText>
+                    </DashboardText>
                   )}
                 </View>
 
                 <View style={[styles.sectionCard, cardColors]}>
+                  <Image
+                    accessible={false}
+                    contentFit="contain"
+                    pointerEvents="none"
+                    source={decorations.movements}
+                    style={styles.movementsDecoration}
+                  />
                   <View style={styles.sectionHeader}>
-                    <ThemedText style={styles.sectionTitle}>Movimientos recientes</ThemedText>
+                    <DashboardText style={styles.sectionTitle}>Movimientos recientes</DashboardText>
                     <Pressable
                       accessibilityRole="button"
                       hitSlop={8}
                       onPress={() => router.push('/transactions')}
-                      style={({ pressed }) => pressed && styles.buttonPressed}>
-                      <ThemedText type="small">Ver todos</ThemedText>
+                      style={({ pressed }) => [styles.sectionAction, pressed && styles.buttonPressed]}>
+                      <DashboardText type="small" style={styles.sectionActionText}>
+                        Ver todos
+                      </DashboardText>
+                      <SymbolView
+                        name={{ android: 'chevron_right', ios: 'chevron.right', web: 'chevron_right' }}
+                        size={16}
+                        tintColor={palette.muted}
+                      />
                     </Pressable>
                   </View>
 
                   {dashboard.recentTransactions.length ? (
-                    <View>
+                    <View style={styles.transactionsList}>
                       {dashboard.recentTransactions.map((transaction, index) => {
                         const isIncome = transaction.type === 'income';
                         const category = getTransactionCategory(transaction);
+                        const categoryColor = category?.color || palette.olive;
 
                         return (
                           <Pressable
@@ -455,36 +598,41 @@ export default function DashboardScreen() {
                             style={({ pressed }) => [
                               styles.transactionRow,
                               index > 0 && {
-                                borderTopColor: theme.backgroundSelected,
+                                borderTopColor: palette.border,
                                 borderTopWidth: StyleSheet.hairlineWidth,
                               },
                               pressed && styles.transactionPressed,
                             ]}>
                             <CategoryIcon
-                              color={category?.color}
+                              backgroundColor={getSoftCategoryColor(categoryColor)}
+                              iconColor={categoryColor}
                               iconKey={category?.icon_key}
-                              size={34}
-                              symbolSize={19}
+                              size={42}
+                              symbolSize={21}
                             />
                             <View style={styles.transactionMain}>
-                              <ThemedText type="smallBold" numberOfLines={1}>
+                              <DashboardText type="smallBold" numberOfLines={1} style={styles.transactionTitle}>
                                 {transaction.description || getTransactionCategoryName(transaction)}
-                              </ThemedText>
-                              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                              </DashboardText>
+                              <DashboardText
+                                type="small"
+                                themeColor="textSecondary"
+                                numberOfLines={1}
+                                style={styles.transactionSubtitle}>
                                 {getTransactionCategoryName(transaction)} ·{' '}
                                 {formatTransactionDate(transaction.transaction_date)}
-                              </ThemedText>
+                              </DashboardText>
                             </View>
 
-                            <ThemedText
+                            <DashboardText
                               type="smallBold"
                               style={[
                                 styles.transactionAmount,
-                                { color: isIncome ? '#16835C' : theme.text },
+                                { color: isIncome ? palette.olive : palette.terracotta },
                               ]}>
                               {isIncome ? '+' : '-'}
                               {formatCurrency(transaction.amount)}
-                            </ThemedText>
+                            </DashboardText>
 
                             <SymbolView
                               name={{
@@ -493,7 +641,7 @@ export default function DashboardScreen() {
                                 web: 'chevron_right',
                               }}
                               size={18}
-                              tintColor={theme.textSecondary}
+                              tintColor={palette.muted}
                             />
                           </Pressable>
                         );
@@ -501,9 +649,9 @@ export default function DashboardScreen() {
                     </View>
                   ) : (
                     <View style={styles.emptyMovements}>
-                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+                      <DashboardText type="small" themeColor="textSecondary" style={styles.emptyText}>
                         Tus movimientos aparecerán aquí cuando registres el primero.
-                      </ThemedText>
+                      </DashboardText>
                       <Pressable
                         accessibilityRole="button"
                         onPress={() => router.push('/transaction/new')}
@@ -511,9 +659,9 @@ export default function DashboardScreen() {
                           styles.primaryButton,
                           pressed && styles.buttonPressed,
                         ]}>
-                        <ThemedText type="smallBold" style={styles.primaryButtonText}>
+                        <DashboardText type="smallBold" style={styles.primaryButtonText}>
                           Nuevo movimiento
-                        </ThemedText>
+                        </DashboardText>
                       </Pressable>
                     </View>
                   )}
@@ -529,51 +677,92 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: palette.background,
     flex: 1,
   },
   safeArea: {
+    backgroundColor: palette.background,
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: BottomTabInset + Spacing.four,
+    paddingBottom: BottomTabInset + Spacing.six,
   },
   content: {
     alignSelf: 'center',
-    gap: 14,
-    maxWidth: MaxContentWidth,
+    gap: 12,
+    maxWidth: 560,
     paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.three,
+    paddingTop: 10,
     width: '100%',
+  },
+  dashboardText: {
+    color: palette.ink,
+    fontFamily: Fonts.serif,
+  },
+  secondaryText: {
+    color: palette.muted,
   },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: Spacing.one,
+    gap: Spacing.two,
+    marginBottom: 8,
+    minHeight: 68,
+  },
+  avatarCluster: {
+    height: 64,
+    position: 'relative',
+    width: 72,
   },
   avatar: {
     alignItems: 'center',
-    borderRadius: 27,
-    height: 54,
+    backgroundColor: '#7D8866',
+    borderRadius: 29,
+    height: 58,
     justifyContent: 'center',
-    width: 54,
+    left: 0,
+    position: 'absolute',
+    top: 3,
+    width: 58,
+    zIndex: 1,
+  },
+  avatarDecoration: {
+    height: 78,
+    left: 43,
+    position: 'absolute',
+    top: -8,
+    width: 25,
+    zIndex: 2,
   },
   avatarText: {
-    fontSize: 16,
+    color: palette.white,
+    fontSize: 21,
+    fontWeight: '500',
+    lineHeight: 27,
   },
   greeting: {
     flex: 1,
     minWidth: 0,
   },
   greetingTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    lineHeight: 31,
+    color: palette.ink,
+    fontSize: 27,
+    fontWeight: '500',
+    letterSpacing: -0.5,
+    lineHeight: 33,
+  },
+  greetingSubtitle: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  greetingSubtitleText: {
+    flexShrink: 1,
   },
   iconButton: {
     alignItems: 'center',
+    backgroundColor: palette.cream,
     borderRadius: 24,
-    borderWidth: 1,
     height: 48,
     justifyContent: 'center',
     width: 48,
@@ -586,7 +775,7 @@ const styles = StyleSheet.create({
   },
   stateCard: {
     alignItems: 'center',
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     gap: 10,
     justifyContent: 'center',
@@ -594,17 +783,40 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
   },
   errorText: {
-    color: '#C24B52',
+    color: palette.terracotta,
     fontSize: 16,
   },
   stateText: {
     textAlign: 'center',
   },
   balanceCard: {
-    borderRadius: 18,
+    backgroundColor: '#969D83',
+    borderColor: '#878E73',
+    borderRadius: 20,
     borderWidth: 1,
-    gap: 16,
+    elevation: 3,
+    minHeight: 186,
+    overflow: 'hidden',
     padding: 20,
+    position: 'relative',
+    shadowColor: '#4D503E',
+    shadowOffset: { height: 5, width: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 9,
+  },
+  balanceDecoration: {
+    bottom: -42,
+    height: 235,
+    opacity: 0.9,
+    position: 'absolute',
+    right: -18,
+    width: 205,
+  },
+  balanceContent: {
+    alignItems: 'flex-start',
+    gap: 12,
+    maxWidth: '76%',
+    zIndex: 1,
   },
   balanceHeader: {
     alignItems: 'center',
@@ -612,101 +824,216 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   sectionEyebrow: {
-    fontSize: 16,
+    color: palette.white,
+    fontSize: 17,
+    fontWeight: '500',
+    lineHeight: 23,
   },
   balanceAmount: {
-    fontSize: 40,
+    color: palette.white,
+    fontSize: 46,
     fontVariant: ['tabular-nums'],
-    fontWeight: '600',
-    letterSpacing: -1.2,
-    lineHeight: 48,
+    fontWeight: '500',
+    letterSpacing: -1,
+    lineHeight: 54,
   },
-  outlineButton: {
+  detailButton: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    borderRadius: 9,
-    borderWidth: 1,
+    backgroundColor: palette.oliveDark,
+    borderRadius: 22,
     flexDirection: 'row',
-    gap: Spacing.one,
-    minHeight: 42,
-    paddingHorizontal: 14,
+    gap: 7,
+    minHeight: 40,
+    paddingHorizontal: 16,
+  },
+  detailButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '500',
   },
   summaryRow: {
     flexDirection: 'row',
     gap: 12,
   },
   summaryCard: {
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     flex: 1,
-    gap: 12,
+    gap: 9,
+    minHeight: 160,
     minWidth: 0,
-    padding: Spacing.three,
+    overflow: 'hidden',
+    padding: 15,
+    position: 'relative',
+  },
+  incomeCard: {
+    backgroundColor: '#F8F6EE',
+    borderColor: '#DDDCCB',
+  },
+  expenseCard: {
+    backgroundColor: palette.expenseBackground,
+    borderColor: palette.expenseBorder,
+  },
+  incomeDecoration: {
+    bottom: -10,
+    height: 76,
+    left: -15,
+    opacity: 0.92,
+    position: 'absolute',
+    width: 110,
+  },
+  expenseDecoration: {
+    bottom: -8,
+    height: 112,
+    opacity: 0.88,
+    position: 'absolute',
+    right: -2,
+    width: 57,
+  },
+  summaryTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    zIndex: 1,
+  },
+  summaryTitle: {
+    fontSize: 19,
+    fontWeight: '500',
+    lineHeight: 25,
+  },
+  summaryIcon: {
+    alignItems: 'center',
+    borderRadius: 23,
+    height: 46,
+    justifyContent: 'center',
+    width: 46,
+  },
+  incomeIcon: {
+    backgroundColor: '#8B9672',
+  },
+  expenseIcon: {
+    backgroundColor: palette.terracotta,
   },
   summaryAmount: {
-    fontSize: 22,
+    fontSize: 25,
     fontVariant: ['tabular-nums'],
-    fontWeight: '600',
-    lineHeight: 28,
+    fontWeight: '500',
+    letterSpacing: -0.35,
+    lineHeight: 31,
+    zIndex: 1,
+  },
+  incomeAmount: {
+    color: palette.olive,
+  },
+  expenseAmount: {
+    color: palette.terracotta,
   },
   summaryFooter: {
-    alignItems: 'flex-start',
-    gap: Spacing.one,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'space-between',
+    marginTop: 'auto',
+    zIndex: 1,
+  },
+  periodText: {
+    fontSize: 13,
   },
   trendText: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
   },
   sectionCard: {
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
+    overflow: 'hidden',
     padding: Spacing.three,
+    position: 'relative',
+  },
+  categoriesDecoration: {
+    bottom: -15,
+    height: 112,
+    opacity: 0.7,
+    position: 'absolute',
+    right: -2,
+    width: 45,
+  },
+  movementsDecoration: {
+    bottom: -18,
+    height: 165,
+    opacity: 0.68,
+    position: 'absolute',
+    right: -4,
+    width: 59,
   },
   sectionHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: Spacing.two,
     justifyContent: 'space-between',
-    marginBottom: Spacing.three,
+    marginBottom: 14,
+    zIndex: 1,
   },
   sectionTitle: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 24,
+    fontSize: 21,
+    fontWeight: '500',
+    letterSpacing: -0.25,
+    lineHeight: 27,
+  },
+  sectionAction: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 3,
+  },
+  sectionActionText: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '500',
   },
   categoriesRow: {
+    alignItems: 'stretch',
     flexDirection: 'row',
+    minHeight: 132,
+    zIndex: 1,
   },
   categoryItem: {
     alignItems: 'center',
     flex: 1,
-    gap: Spacing.one,
+    gap: 4,
+    justifyContent: 'center',
     minWidth: 0,
-    paddingHorizontal: Spacing.one,
-  },
-  categoryNameRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: Spacing.one,
-    maxWidth: '100%',
+    paddingHorizontal: 5,
   },
   categoryName: {
     flexShrink: 1,
-    fontSize: 12,
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 20,
+    maxWidth: '100%',
   },
   categoryAmount: {
-    fontSize: 12,
+    fontSize: 16,
     fontVariant: ['tabular-nums'],
+    lineHeight: 22,
+  },
+  categoryPercentage: {
+    fontSize: 14,
+    lineHeight: 19,
   },
   emptyText: {
+    paddingVertical: Spacing.three,
     textAlign: 'center',
+  },
+  transactionsList: {
+    zIndex: 1,
   },
   transactionRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: Spacing.two,
-    minHeight: 64,
+    gap: 10,
+    minHeight: 72,
     paddingVertical: 10,
   },
   transactionPressed: {
@@ -716,8 +1043,21 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  transactionTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 21,
+  },
+  transactionSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
   transactionAmount: {
+    fontSize: 16,
     fontVariant: ['tabular-nums'],
+    fontWeight: '500',
+    lineHeight: 21,
+    maxWidth: 105,
     textAlign: 'right',
   },
   emptyMovements: {
@@ -727,14 +1067,14 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: '#208AEF',
-    borderRadius: 9,
+    backgroundColor: palette.oliveDark,
+    borderRadius: 22,
     justifyContent: 'center',
     minHeight: 42,
     paddingHorizontal: Spacing.three,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: palette.white,
   },
   buttonPressed: {
     opacity: 0.65,
