@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import DateTimePicker, {
   type DateTimePickerChangeEvent,
 } from '@expo/ui/community/datetime-picker';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import {
@@ -13,15 +14,15 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  useColorScheme,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
+import { ThemedText, type ThemedTextProps } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Fonts, Spacing } from '@/constants/theme';
 import { listCategories } from '@/features/categories/categories.api';
-import { CategoryIcon } from '@/features/categories/components/category-icon';
 import type { Category } from '@/features/categories/types';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -34,9 +35,43 @@ import {
 } from '../transactions.api';
 import type { TransactionType } from '../types';
 
+const palette = {
+  background: '#FBF8F1',
+  border: '#E4DAC9',
+  danger: '#B65336',
+  dangerPale: '#FBEEE8',
+  expense: '#C45D32',
+  ink: '#303A29',
+  muted: '#89897F',
+  olive: '#7D8866',
+  oliveDark: '#4E5C39',
+  oliveLight: '#C9D5AC',
+  surface: '#FEFCF7',
+  white: '#FFFDF8',
+} as const;
+
+const decorations = {
+  branch: require('../../../../assets/decorations/hojas_icono.webp'),
+  flower: require('../../../../assets/decorations/flores_vertical_2.webp'),
+  leaves: require('../../../../assets/decorations/planta_vertical_1.webp'),
+};
+
 type TransactionEditorProps = {
   transactionId?: string;
 };
+
+function EditorText({ style, themeColor, ...props }: ThemedTextProps) {
+  return (
+    <ThemedText
+      {...props}
+      style={[
+        styles.editorText,
+        themeColor === 'textSecondary' && styles.secondaryText,
+        style,
+      ]}
+    />
+  );
+}
 
 function parseDateInput(date: string) {
   const [year, month, day] = date.split('-').map(Number);
@@ -58,6 +93,8 @@ function formatDateInput(date: Date) {
 
 export function TransactionEditor({ transactionId }: TransactionEditorProps) {
   const isEditing = Boolean(transactionId);
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<TransactionType>('expense');
   const [categoryId, setCategoryId] = useState('');
@@ -192,7 +229,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.keyboardView}>
@@ -200,214 +237,304 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
             automaticallyAdjustKeyboardInsets
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled">
-            <ThemedText type="subtitle">
-              {isEditing ? 'Editar movimiento' : 'Nuevo movimiento'}
-            </ThemedText>
-
-            {isLoading ? (
-              <View style={styles.stateContainer}>
-                <ActivityIndicator />
-                <ThemedText type="small" themeColor="textSecondary">
-                  Cargando movimiento...
-                </ThemedText>
-              </View>
-            ) : (
-              <View style={styles.form}>
-                <View style={styles.field}>
-                  <ThemedText type="smallBold">Monto</ThemedText>
-                  <TextInput
-                    inputMode="decimal"
-                    keyboardType="decimal-pad"
-                    onChangeText={setAmount}
-                    placeholder="0.00"
-                    placeholderTextColor="#9ca3af"
-                    style={styles.input}
-                    value={amount}
-                  />
+            <View style={styles.content}>
+              {isLoading ? (
+                <View style={styles.stateContainer}>
+                  <ActivityIndicator color={palette.oliveDark} size="large" />
+                  <EditorText type="small" themeColor="textSecondary">
+                    Cargando movimiento...
+                  </EditorText>
                 </View>
-
-                <View style={styles.field}>
-                  <ThemedText type="smallBold">Tipo</ThemedText>
-                  <View style={styles.segment}>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setType('expense')}
-                      style={({ pressed }) => [
-                        styles.segmentButton,
-                        type === 'expense' && styles.segmentButtonActive,
-                        pressed && styles.buttonPressed,
-                      ]}>
-                      <ThemedText
-                        type="smallBold"
-                        style={type === 'expense' && styles.segmentButtonTextActive}>
-                        Gasto
-                      </ThemedText>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setType('income')}
-                      style={({ pressed }) => [
-                        styles.segmentButton,
-                        type === 'income' && styles.segmentButtonActive,
-                        pressed && styles.buttonPressed,
-                      ]}>
-                      <ThemedText
-                        type="smallBold"
-                        style={type === 'income' && styles.segmentButtonTextActive}>
-                        Ingreso
-                      </ThemedText>
-                    </Pressable>
+              ) : (
+                <View style={styles.form}>
+                  <View style={styles.field}>
+                    <EditorText style={styles.fieldLabel}>Monto</EditorText>
+                    <View style={styles.inputShell}>
+                      <TextInput
+                        accessibilityLabel="Monto"
+                        inputMode="decimal"
+                        keyboardType="decimal-pad"
+                        onChangeText={setAmount}
+                        placeholder="0.00"
+                        placeholderTextColor={palette.muted}
+                        selectionColor={palette.olive}
+                        style={[styles.input, styles.amountInput]}
+                        value={amount}
+                      />
+                      <Image
+                        accessible={false}
+                        contentFit="contain"
+                        pointerEvents="none"
+                        source={decorations.branch}
+                        style={styles.inputDecoration}
+                      />
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.field}>
-                  <ThemedText type="smallBold">Categoría</ThemedText>
-                  <View style={styles.categoryList}>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => setCategoryId('')}
-                      style={({ pressed }) => [
-                        styles.categoryButton,
-                        !categoryId && styles.categoryButtonActive,
-                        pressed && styles.buttonPressed,
-                      ]}>
-                      <CategoryIcon color="#9ca3af" size={24} symbolSize={14} />
-                      <ThemedText
-                        type="smallBold"
-                        style={!categoryId && styles.categoryButtonTextActive}>
-                        Sin categoría
-                      </ThemedText>
-                    </Pressable>
-
-                    {filteredCategories.map((category) => (
+                  <View style={styles.field}>
+                    <EditorText style={styles.fieldLabel}>Tipo</EditorText>
+                    <View style={styles.segment}>
                       <Pressable
                         accessibilityRole="button"
-                        key={category.id}
-                        onPress={() => setCategoryId(category.id)}
+                        accessibilityState={{ selected: type === 'expense' }}
+                        onPress={() => setType('expense')}
                         style={({ pressed }) => [
-                          styles.categoryButton,
-                          category.id === categoryId && styles.categoryButtonActive,
+                          styles.segmentButton,
+                          type === 'expense' && styles.segmentButtonActive,
+                          type === 'expense' && styles.expenseSegmentButtonActive,
                           pressed && styles.buttonPressed,
                         ]}>
-                        <CategoryIcon
-                          color={category.color}
-                          iconKey={category.icon_key}
-                          size={24}
-                          symbolSize={14}
-                        />
-                        <ThemedText
-                          type="smallBold"
-                          style={category.id === categoryId && styles.categoryButtonTextActive}>
-                          {category.name}
-                        </ThemedText>
+                        {type === 'expense' ? (
+                          <Image
+                            accessible={false}
+                            contentFit="contain"
+                            pointerEvents="none"
+                            source={decorations.flower}
+                            style={[styles.segmentDecoration, styles.expenseSegmentDecoration]}
+                          />
+                        ) : null}
+                        <EditorText
+                          style={[
+                            styles.segmentButtonText,
+                            type === 'expense' && styles.selectedText,
+                          ]}>
+                          Gasto
+                        </EditorText>
                       </Pressable>
-                    ))}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: type === 'income' }}
+                        onPress={() => setType('income')}
+                        style={({ pressed }) => [
+                          styles.segmentButton,
+                          type === 'income' && styles.segmentButtonActive,
+                          pressed && styles.buttonPressed,
+                        ]}>
+                        {type === 'income' ? (
+                          <Image
+                            accessible={false}
+                            contentFit="contain"
+                            pointerEvents="none"
+                            source={decorations.leaves}
+                            style={[styles.segmentDecoration, styles.incomeSegmentDecoration]}
+                          />
+                        ) : null}
+                        <EditorText
+                          style={[
+                            styles.segmentButtonText,
+                            type === 'income' && styles.selectedText,
+                          ]}>
+                          Ingreso
+                        </EditorText>
+                      </Pressable>
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.field}>
-                  <ThemedText type="smallBold">Descripción</ThemedText>
-                  <TextInput
-                    onChangeText={setDescription}
-                    placeholder="Opcional"
-                    placeholderTextColor="#9ca3af"
-                    style={styles.input}
-                    value={description}
-                  />
-                </View>
+                  <View style={styles.field}>
+                    <EditorText style={styles.fieldLabel}>Categoría</EditorText>
+                    <View style={styles.categoryList}>
+                      {filteredCategories.length === 0 ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: !categoryId }}
+                          onPress={() => setCategoryId('')}
+                          style={({ pressed }) => [
+                            styles.categoryButton,
+                            !categoryId && styles.categoryButtonActive,
+                            pressed && styles.buttonPressed,
+                          ]}>
+                          <EditorText
+                            numberOfLines={1}
+                            style={[
+                              styles.categoryButtonText,
+                              !categoryId && styles.selectedText,
+                            ]}>
+                            Sin categoría
+                          </EditorText>
+                          {!categoryId ? (
+                            <Image
+                              accessible={false}
+                              contentFit="contain"
+                              pointerEvents="none"
+                              source={decorations.branch}
+                              style={styles.categoryDecoration}
+                            />
+                          ) : null}
+                        </Pressable>
+                      ) : null}
 
-                <View style={styles.field}>
-                  <ThemedText type="smallBold">Fecha</ThemedText>
-                  <View style={styles.dateInputRow}>
-                    <TextInput
-                      inputMode="numeric"
-                      onChangeText={setTransactionDate}
-                      placeholder="AAAA-MM-DD"
-                      placeholderTextColor="#9ca3af"
-                      style={[styles.input, styles.dateInput]}
-                      value={transactionDate}
-                    />
-                    <Pressable
-                      accessibilityLabel="Seleccionar fecha"
-                      accessibilityRole="button"
-                      onPress={() => {
-                        if (Platform.OS !== 'web') {
-                          setShowDatePicker(true);
-                        }
-                      }}
-                      style={({ pressed }) => [
-                        styles.calendarButton,
-                        pressed && styles.buttonPressed,
-                      ]}>
-                      <SymbolView
-                        fallback={<ThemedText type="smallBold">Cal</ThemedText>}
-                        name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
-                        size={22}
-                        tintColor="#111827"
+                      {filteredCategories.map((category) => {
+                        const isSelected = category.id === categoryId;
+
+                        return (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: isSelected }}
+                            key={category.id}
+                            onPress={() => setCategoryId(category.id)}
+                            style={({ pressed }) => [
+                              styles.categoryButton,
+                              isSelected && styles.categoryButtonActive,
+                              pressed && styles.buttonPressed,
+                            ]}>
+                            <EditorText
+                              numberOfLines={1}
+                              style={[
+                                styles.categoryButtonText,
+                                isSelected && styles.selectedText,
+                              ]}>
+                              {category.name}
+                            </EditorText>
+                            {isSelected ? (
+                              <Image
+                                accessible={false}
+                                contentFit="contain"
+                                pointerEvents="none"
+                                source={decorations.branch}
+                                style={styles.categoryDecoration}
+                              />
+                            ) : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={styles.field}>
+                    <EditorText style={styles.fieldLabel}>Descripción</EditorText>
+                    <View style={styles.inputShell}>
+                      <TextInput
+                        accessibilityLabel="Descripción"
+                        onChangeText={setDescription}
+                        placeholder="Opcional"
+                        placeholderTextColor={palette.muted}
+                        selectionColor={palette.olive}
+                        style={styles.input}
+                        value={description}
                       />
-                    </Pressable>
+                      <Image
+                        accessible={false}
+                        contentFit="contain"
+                        pointerEvents="none"
+                        source={decorations.branch}
+                        style={styles.inputDecoration}
+                      />
+                    </View>
                   </View>
 
-                  {showDatePicker && Platform.OS !== 'web' ? (
-                    <DateTimePicker
-                      accentColor="#111827"
-                      display="default"
-                      mode="date"
-                      negativeButton={{ label: 'Cancelar' }}
-                      onDismiss={() => setShowDatePicker(false)}
-                      onValueChange={handleDatePickerChange}
-                      positiveButton={{ label: 'Aceptar' }}
-                      value={parseDateInput(transactionDate)}
-                    />
+                  <View style={styles.field}>
+                    <EditorText style={styles.fieldLabel}>Fecha</EditorText>
+                    <View style={styles.dateInputRow}>
+                      <View style={[styles.inputShell, styles.dateInputShell]}>
+                        <TextInput
+                          accessibilityLabel="Fecha"
+                          inputMode="numeric"
+                          onChangeText={setTransactionDate}
+                          placeholder="AAAA-MM-DD"
+                          placeholderTextColor={palette.muted}
+                          selectionColor={palette.olive}
+                          style={[styles.input, styles.dateInput]}
+                          value={transactionDate}
+                        />
+                      </View>
+                      <Pressable
+                        accessibilityLabel="Seleccionar fecha"
+                        accessibilityRole="button"
+                        onPress={() => {
+                          if (Platform.OS !== 'web') {
+                            setShowDatePicker(true);
+                          }
+                        }}
+                        style={({ pressed }) => [
+                          styles.calendarButton,
+                          pressed && styles.buttonPressed,
+                        ]}>
+                        <SymbolView
+                          fallback={<EditorText style={styles.calendarFallback}>Cal</EditorText>}
+                          name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
+                          size={25}
+                          tintColor={palette.oliveDark}
+                        />
+                        <Image
+                          accessible={false}
+                          contentFit="contain"
+                          pointerEvents="none"
+                          source={decorations.flower}
+                          style={styles.calendarDecoration}
+                        />
+                      </Pressable>
+                    </View>
+
+                    {showDatePicker && Platform.OS !== 'web' ? (
+                      <DateTimePicker
+                        accentColor={isDarkMode ? palette.oliveLight : palette.oliveDark}
+                        display="default"
+                        mode="date"
+                        negativeButton={{ label: 'Cancelar' }}
+                        onDismiss={() => setShowDatePicker(false)}
+                        onValueChange={handleDatePickerChange}
+                        positiveButton={{ label: 'Aceptar' }}
+                        themeVariant={isDarkMode ? 'dark' : 'light'}
+                        value={parseDateInput(transactionDate)}
+                      />
+                    ) : null}
+                  </View>
+
+                  {message ? (
+                    <View style={styles.errorCard}>
+                      <EditorText
+                        accessibilityLiveRegion="polite"
+                        style={styles.errorText}>
+                        {message}
+                      </EditorText>
+                    </View>
                   ) : null}
-                </View>
 
-                {message ? (
-                  <ThemedText
-                    accessibilityLiveRegion="polite"
-                    type="smallBold"
-                    style={styles.errorText}>
-                    {message}
-                  </ThemedText>
-                ) : null}
-
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={isSubmitting || isDeleting}
-                  onPress={handleSubmit}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-                    (pressed || isSubmitting) && styles.buttonPressed,
-                  ]}>
-                  {isSubmitting ? (
-                    <ActivityIndicator color="#ffffff" />
-                  ) : (
-                    <ThemedText type="smallBold" style={styles.primaryButtonText}>
-                      {isEditing ? 'Guardar cambios' : 'Guardar movimiento'}
-                    </ThemedText>
-                  )}
-                </Pressable>
-
-                {isEditing ? (
                   <Pressable
                     accessibilityRole="button"
                     disabled={isSubmitting || isDeleting}
-                    onPress={confirmDelete}
+                    onPress={handleSubmit}
                     style={({ pressed }) => [
-                      styles.deleteButton,
-                      (pressed || isDeleting) && styles.buttonPressed,
+                      styles.primaryButton,
+                      (pressed || isSubmitting) && styles.buttonPressed,
                     ]}>
-                    {isDeleting ? (
-                      <ActivityIndicator color="#dc2626" />
+                    {isSubmitting ? (
+                      <ActivityIndicator color={palette.white} />
                     ) : (
-                      <ThemedText type="smallBold" style={styles.deleteButtonText}>
-                        Eliminar movimiento
-                      </ThemedText>
+                      <EditorText style={styles.primaryButtonText}>
+                        {isEditing ? 'Guardar cambios' : 'Guardar movimiento'}
+                      </EditorText>
                     )}
+                    <Image
+                      accessible={false}
+                      contentFit="contain"
+                      pointerEvents="none"
+                      source={decorations.branch}
+                      style={styles.buttonDecoration}
+                    />
                   </Pressable>
-                ) : null}
-              </View>
-            )}
+
+                  {isEditing ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isSubmitting || isDeleting}
+                      onPress={confirmDelete}
+                      style={({ pressed }) => [
+                        styles.deleteButton,
+                        (pressed || isDeleting) && styles.buttonPressed,
+                      ]}>
+                      {isDeleting ? (
+                        <ActivityIndicator color={palette.danger} />
+                      ) : (
+                        <EditorText style={styles.deleteButtonText}>
+                          Eliminar movimiento
+                        </EditorText>
+                      )}
+                    </Pressable>
+                  ) : null}
+                </View>
+              )}
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -417,128 +544,315 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: palette.background,
     flex: 1,
   },
   safeArea: {
+    backgroundColor: palette.background,
     flex: 1,
-    padding: Spacing.four,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
-    gap: Spacing.three,
-    paddingBottom: Spacing.six,
+    paddingBottom: Spacing.five,
+  },
+  content: {
+    alignSelf: 'center',
+    maxWidth: 560,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.four,
+    width: '100%',
+  },
+  editorText: {
+    color: palette.ink,
+    fontFamily: Fonts.serif,
+  },
+  secondaryText: {
+    color: palette.muted,
+  },
+  titleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 28,
+    minHeight: 54,
+  },
+  screenTitle: {
+    flexShrink: 1,
+    fontSize: 39,
+    fontWeight: '500',
+    letterSpacing: -0.8,
+    lineHeight: 48,
+  },
+  titleDecoration: {
+    height: 55,
+    marginLeft: -2,
+    transform: [{ rotate: '64deg' }],
+    width: 51,
   },
   stateContainer: {
     alignItems: 'center',
     gap: Spacing.three,
-    paddingTop: Spacing.five,
+    justifyContent: 'center',
+    minHeight: 360,
   },
   form: {
-    gap: Spacing.three,
+    gap: 20,
   },
   field: {
-    gap: Spacing.two,
+    gap: 5,
+  },
+  fieldLabel: {
+    fontSize: 22,
+    fontWeight: '500',
+    lineHeight: 28,
+  },
+  inputShell: {
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 17,
+    borderWidth: 1,
+    elevation: 2,
+    minHeight: 62,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#6D6659',
+    shadowOffset: { height: 3, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   input: {
-    backgroundColor: '#f3f4f6',
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    borderWidth: 1,
-    color: '#111827',
-    fontSize: 16,
-    minHeight: 48,
-    paddingHorizontal: Spacing.three,
+    color: palette.ink,
+    fontFamily: Fonts.serif,
+    fontSize: 20,
+    minHeight: 62,
+    paddingHorizontal: 18,
+    paddingRight: 54,
+    position: 'relative',
+    zIndex: 1,
   },
-  dateInputRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: Spacing.two,
+  amountInput: {
+    fontSize: 27,
+    minHeight: 70,
   },
-  dateInput: {
-    flex: 1,
-  },
-  calendarButton: {
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    borderWidth: 1,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
+  inputDecoration: {
+    bottom: -24,
+    height: 87,
+    opacity: 0.83,
+    position: 'absolute',
+    right: 3,
+    transform: [{ rotate: '32deg' }],
+    width: 31,
+    zIndex: 2,
   },
   segment: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 17,
+    borderWidth: 1,
+    elevation: 2,
     flexDirection: 'row',
-    padding: Spacing.one,
+    minHeight: 64,
+    overflow: 'hidden',
+    padding: 4,
+    shadowColor: '#6D6659',
+    shadowOffset: { height: 3, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   segmentButton: {
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: 13,
     flex: 1,
     justifyContent: 'center',
-    minHeight: 40,
+    minHeight: 54,
+    overflow: 'hidden',
+    position: 'relative',
   },
   segmentButtonActive: {
-    backgroundColor: '#111827',
+    backgroundColor: palette.olive,
   },
-  segmentButtonTextActive: {
-    color: '#ffffff',
+  expenseSegmentButtonActive: {
+    backgroundColor: palette.expense,
+  },
+  segmentButtonText: {
+    fontSize: 20,
+    fontWeight: '500',
+    lineHeight: 26,
+    zIndex: 1,
+  },
+  selectedText: {
+    color: palette.white,
+  },
+  segmentDecoration: {
+    bottom: -31,
+    height: 99,
+    left: -7,
+    opacity: 0.8,
+    position: 'absolute',
+    width: 42,
+  },
+  expenseSegmentDecoration: {
+    transform: [{ rotate: '12deg' }],
+  },
+  incomeSegmentDecoration: {
+    transform: [{ rotate: '34deg' }],
   },
   categoryList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.two,
+    gap: 10,
   },
   categoryButton: {
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderColor: '#d1d5db',
-    borderRadius: 8,
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 16,
     borderWidth: 1,
-    flexDirection: 'row',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
+    elevation: 1,
+    justifyContent: 'center',
+    minHeight: 52,
+    overflow: 'hidden',
+    paddingHorizontal: 19,
+    paddingVertical: 10,
+    position: 'relative',
+    shadowColor: '#6D6659',
+    shadowOffset: { height: 2, width: 0 },
+    shadowOpacity: 0.06,
+    shadowRadius: 5,
   },
   categoryButtonActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+    backgroundColor: palette.olive,
+    borderColor: palette.oliveDark,
+    borderWidth: 2,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
   },
-  categoryButtonTextActive: {
-    color: '#ffffff',
+  categoryButtonText: {
+    fontSize: 18,
+    fontWeight: '500',
+    lineHeight: 24,
+    maxWidth: 190,
+    zIndex: 1,
+  },
+  categoryDecoration: {
+    bottom: -28,
+    height: 80,
+    opacity: 0.82,
+    position: 'absolute',
+    right: -2,
+    transform: [{ rotate: '30deg' }],
+    width: 29,
+  },
+  dateInputRow: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  dateInputShell: {
+    flex: 1,
+  },
+  dateInput: {
+    fontVariant: ['tabular-nums'],
+    paddingRight: 18,
+  },
+  calendarButton: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 17,
+    borderWidth: 1,
+    elevation: 2,
+    justifyContent: 'center',
+    minHeight: 62,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#6D6659',
+    shadowOffset: { height: 3, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    width: 68,
+  },
+  calendarFallback: {
+    color: palette.oliveDark,
+    fontSize: 14,
+    fontWeight: '600',
+    zIndex: 1,
+  },
+  calendarDecoration: {
+    bottom: -19,
+    height: 53,
+    opacity: 0.78,
+    position: 'absolute',
+    right: -3,
+    transform: [{ rotate: '23deg' }],
+    width: 32,
+  },
+  errorCard: {
+    backgroundColor: palette.dangerPale,
+    borderColor: '#EAC7B9',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 12,
   },
   errorText: {
-    color: '#dc2626',
+    color: palette.danger,
+    fontSize: 16,
+    lineHeight: 22,
   },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: '#111827',
-    borderRadius: 8,
+    backgroundColor: palette.olive,
+    borderColor: '#717B5D',
+    borderRadius: 18,
+    borderWidth: 1,
+    elevation: 4,
     justifyContent: 'center',
-    minHeight: 48,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
+    minHeight: 62,
+    overflow: 'hidden',
+    paddingHorizontal: 54,
+    paddingVertical: 13,
+    position: 'relative',
+    shadowColor: '#4D503E',
+    shadowOffset: { height: 5, width: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 9,
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: palette.white,
+    fontSize: 20,
+    fontWeight: '500',
+    lineHeight: 27,
+    textAlign: 'center',
+    zIndex: 1,
+  },
+  buttonDecoration: {
+    bottom: -25,
+    height: 92,
+    opacity: 0.84,
+    position: 'absolute',
+    right: 8,
+    transform: [{ rotate: '27deg' }],
+    width: 34,
   },
   deleteButton: {
     alignItems: 'center',
-    backgroundColor: '#fee2e2',
-    borderRadius: 8,
+    backgroundColor: palette.dangerPale,
+    borderColor: '#EAC7B9',
+    borderRadius: 18,
+    borderWidth: 1,
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 56,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
+    paddingVertical: 12,
   },
   deleteButtonText: {
-    color: '#dc2626',
+    color: palette.danger,
+    fontSize: 18,
+    fontWeight: '500',
   },
   buttonPressed: {
-    opacity: 0.75,
+    opacity: 0.68,
   },
 });
