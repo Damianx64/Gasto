@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { Image } from 'expo-image';
 import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
@@ -12,18 +13,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { CategoryExpensesChart } from '@/features/reports/components/category-expenses-chart';
 import { IncomeExpenseChart } from '@/features/reports/components/income-expense-chart';
 import { MonthlyExpensesChart } from '@/features/reports/components/monthly-expenses-chart';
 import { buildReportsSummary } from '@/features/reports/report-data';
+import { reportDecorations, reportPalette } from '@/features/reports/report-theme';
 import { listTransactions } from '@/features/transactions/transactions.api';
 import type { TransactionListItem } from '@/features/transactions/types';
-import { useTheme } from '@/hooks/use-theme';
 import { getErrorMessage } from '@/lib/errors';
 
 export default function ReportsScreen() {
-  const theme = useTheme();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -54,10 +54,6 @@ export default function ReportsScreen() {
   );
 
   const reports = useMemo(() => buildReportsSummary(transactions), [transactions]);
-  const cardColors = {
-    backgroundColor: theme.background,
-    borderColor: theme.backgroundSelected,
-  };
 
   return (
     <ThemedView style={styles.container}>
@@ -68,31 +64,40 @@ export default function ReportsScreen() {
             <RefreshControl
               onRefresh={() => loadReports('refresh')}
               refreshing={isRefreshing}
-              tintColor={theme.text}
+              tintColor={reportPalette.olive}
             />
           }
           showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
             <View style={styles.header}>
-              <ThemedText type="subtitle">Reportes</ThemedText>
-              <ThemedText themeColor="textSecondary">
+              <View style={styles.titleRow}>
+                <ThemedText style={styles.title}>Reportes</ThemedText>
+                <Image
+                  accessible={false}
+                  contentFit="contain"
+                  pointerEvents="none"
+                  source={reportDecorations.header}
+                  style={styles.titleDecoration}
+                />
+              </View>
+              <ThemedText style={styles.subtitle}>
                 Entiende cómo se mueve tu dinero.
               </ThemedText>
             </View>
 
             {isLoading ? (
               <View style={styles.loadingState}>
-                <ActivityIndicator color={theme.text} />
-                <ThemedText type="small" themeColor="textSecondary">
+                <ActivityIndicator color={reportPalette.olive} />
+                <ThemedText type="small" style={styles.stateText}>
                   Preparando tus gráficas...
                 </ThemedText>
               </View>
             ) : errorMessage ? (
-              <View style={[styles.stateCard, cardColors]}>
+              <View style={styles.stateCard}>
                 <ThemedText type="smallBold" style={styles.errorText}>
                   No pudimos cargar tus reportes
                 </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.stateText}>
+                <ThemedText type="small" style={styles.stateText}>
                   {errorMessage}
                 </ThemedText>
                 <Pressable
@@ -127,25 +132,54 @@ export default function ReportsScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: reportPalette.background,
     flex: 1,
   },
   safeArea: {
+    backgroundColor: reportPalette.background,
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: BottomTabInset + Spacing.four,
+    paddingBottom: BottomTabInset + Spacing.six,
   },
   content: {
     alignSelf: 'center',
-    gap: Spacing.three,
-    maxWidth: MaxContentWidth,
+    gap: 16,
+    maxWidth: 560,
     paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.three,
+    paddingTop: 10,
     width: '100%',
   },
   header: {
-    gap: Spacing.one,
-    marginBottom: Spacing.one,
+    gap: 2,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  titleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 9,
+  },
+  title: {
+    color: reportPalette.ink,
+    fontFamily: Fonts.serif,
+    fontSize: 42,
+    fontWeight: '500',
+    letterSpacing: -0.9,
+    lineHeight: 49,
+  },
+  titleDecoration: {
+    height: 35,
+    opacity: 0.82,
+    transform: [{ rotate: '-8deg' }],
+    width: 58,
+  },
+  subtitle: {
+    color: reportPalette.muted,
+    fontFamily: Fonts.serif,
+    fontSize: 17,
+    fontWeight: '400',
+    lineHeight: 24,
   },
   loadingState: {
     alignItems: 'center',
@@ -155,30 +189,41 @@ const styles = StyleSheet.create({
   },
   stateCard: {
     alignItems: 'center',
-    borderRadius: 18,
+    backgroundColor: reportPalette.surface,
+    borderColor: reportPalette.border,
+    borderRadius: 20,
     borderWidth: 1,
+    elevation: 2,
     gap: Spacing.three,
     justifyContent: 'center',
     minHeight: 280,
     padding: Spacing.four,
+    shadowColor: '#6D6659',
+    shadowOffset: { height: 4, width: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
   },
   errorText: {
-    color: '#C24B52',
+    color: reportPalette.expense,
+    fontFamily: Fonts.serif,
     fontSize: 16,
   },
   stateText: {
+    color: reportPalette.muted,
+    fontFamily: Fonts.serif,
     textAlign: 'center',
   },
   retryButton: {
     alignItems: 'center',
-    backgroundColor: '#208AEF',
-    borderRadius: 9,
+    backgroundColor: reportPalette.oliveDark,
+    borderRadius: 22,
     justifyContent: 'center',
     minHeight: 42,
     paddingHorizontal: Spacing.three,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: reportPalette.white,
+    fontFamily: Fonts.serif,
   },
   buttonPressed: {
     opacity: 0.65,

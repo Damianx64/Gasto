@@ -1,15 +1,16 @@
+import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
+import { reportDecorations, reportPalette } from '@/features/reports/report-theme';
 import { formatCurrency } from '@/features/transactions/formatters';
-import { useTheme } from '@/hooks/use-theme';
 
 import { ReportCard } from './report-card';
 
 const chartColors = {
-  expense: '#F0656B',
-  income: '#31A778',
+  expense: reportPalette.expense,
+  income: '#5E8B62',
 };
 
 type ComparisonRowProps = {
@@ -20,7 +21,6 @@ type ComparisonRowProps = {
 };
 
 function ComparisonRow({ amount, color, label, maxAmount }: ComparisonRowProps) {
-  const theme = useTheme();
   const width = maxAmount > 0 ? (amount / maxAmount) * 100 : 0;
 
   return (
@@ -31,13 +31,13 @@ function ComparisonRow({ amount, color, label, maxAmount }: ComparisonRowProps) 
       <View style={styles.rowHeader}>
         <View style={styles.labelRow}>
           <View style={[styles.dot, { backgroundColor: color }]} />
-          <ThemedText type="smallBold">{label}</ThemedText>
+          <ThemedText style={styles.label}>{label}</ThemedText>
         </View>
-        <ThemedText type="smallBold" style={styles.amount}>
+        <ThemedText style={styles.amount}>
           {formatCurrency(amount)}
         </ThemedText>
       </View>
-      <View style={[styles.track, { backgroundColor: theme.backgroundElement }]}>
+      <View style={styles.track}>
         <View
           style={[
             styles.bar,
@@ -67,12 +67,27 @@ export function IncomeExpenseChart({
   const statusColor = difference >= 0 ? chartColors.income : chartColors.expense;
   const status = difference >= 0
     ? `Te quedan ${formatCurrency(difference)}`
-    : `Gastaste ${formatCurrency(Math.abs(difference))} más de lo que ingresó`;
+    : `Gastaste ${formatCurrency(Math.abs(difference))} más de lo que ingresaste`;
 
   return (
     <ReportCard description={`Balance de ${period}`} title="Ingresos vs gastos">
-      <View style={[styles.status, { backgroundColor: `${statusColor}18` }]}>
-        <ThemedText type="smallBold" style={{ color: statusColor }}>
+      <Image
+        accessible={false}
+        contentFit="contain"
+        pointerEvents="none"
+        source={reportDecorations.comparison}
+        style={styles.decoration}
+      />
+
+      <View
+        style={[
+          styles.status,
+          {
+            backgroundColor:
+              difference >= 0 ? reportPalette.oliveSoft : reportPalette.expenseSoft,
+          },
+        ]}>
+        <ThemedText style={[styles.statusText, { color: statusColor }]}>
           {hasData ? status : 'Aún no hay movimientos este mes'}
         </ThemedText>
       </View>
@@ -96,44 +111,75 @@ export function IncomeExpenseChart({
 }
 
 const styles = StyleSheet.create({
+  decoration: {
+    height: 190,
+    opacity: 0.72,
+    position: 'absolute',
+    right: -23,
+    top: 14,
+    width: 170,
+  },
   status: {
     alignSelf: 'flex-start',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: 11,
+    maxWidth: '78%',
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    zIndex: 1,
+  },
+  statusText: {
+    fontFamily: Fonts.serif,
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 22,
   },
   rows: {
-    gap: Spacing.three,
+    gap: 22,
+    paddingTop: 5,
+    zIndex: 1,
   },
   comparisonRow: {
-    gap: Spacing.two,
+    gap: 10,
   },
   rowHeader: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: Spacing.two,
+    gap: 8,
     justifyContent: 'space-between',
   },
   labelRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: Spacing.two,
+    gap: 10,
   },
   dot: {
-    borderRadius: 5,
-    height: 10,
-    width: 10,
+    borderRadius: 7,
+    height: 14,
+    width: 14,
+  },
+  label: {
+    color: reportPalette.ink,
+    fontFamily: Fonts.serif,
+    fontSize: 20,
+    fontWeight: '500',
+    lineHeight: 26,
   },
   amount: {
+    color: reportPalette.ink,
+    fontFamily: Fonts.serif,
+    fontSize: 20,
     fontVariant: ['tabular-nums'],
+    fontWeight: '500',
+    lineHeight: 26,
   },
   track: {
-    borderRadius: 6,
-    height: 12,
+    backgroundColor: reportPalette.track,
+    borderRadius: 8,
+    height: 14,
     overflow: 'hidden',
   },
   bar: {
-    borderRadius: 6,
+    borderRadius: 8,
     height: '100%',
     minWidth: 0,
   },

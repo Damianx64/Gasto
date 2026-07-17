@@ -1,18 +1,17 @@
+import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Fonts, Spacing } from '@/constants/theme';
 import type { MonthlyExpense } from '@/features/reports/report-data';
+import { reportDecorations, reportPalette } from '@/features/reports/report-theme';
 import { formatCurrency } from '@/features/transactions/formatters';
-import { useTheme } from '@/hooks/use-theme';
 
 import { ReportCard } from './report-card';
 
-const barColor = '#5B8DEF';
-const chartHeight = 156;
+const chartHeight = 168;
 
 export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
-  const theme = useTheme();
   const maxAmount = Math.max(...months.map((month) => month.amount), 0);
   const latestMonth = months.at(-1);
 
@@ -23,15 +22,23 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
       trailing={
         latestMonth ? (
           <View style={styles.latestAmount}>
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText style={styles.latestLabel}>
               Este mes
             </ThemedText>
-            <ThemedText type="smallBold" style={styles.amount}>
+            <ThemedText style={styles.amount}>
               {formatCurrency(latestMonth.amount)}
             </ThemedText>
           </View>
         ) : null
       }>
+      <Image
+        accessible={false}
+        contentFit="contain"
+        pointerEvents="none"
+        source={reportDecorations.monthly}
+        style={styles.decoration}
+      />
+
       {maxAmount > 0 ? (
         <View style={styles.chart}>
           {months.map((month, index) => {
@@ -53,7 +60,6 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
                       styles.barValue,
                       {
                         bottom: Math.round((height / 100) * chartHeight) + 4,
-                        color: isCurrentMonth ? barColor : theme.textSecondary,
                       },
                     ]}
                     type={isCurrentMonth ? 'smallBold' : 'small'}>
@@ -63,16 +69,14 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
                     style={[
                       styles.bar,
                       {
-                        backgroundColor: isCurrentMonth ? barColor : `${barColor}72`,
+                        backgroundColor: isCurrentMonth ? reportPalette.blue : '#9CA995',
                         height: `${height}%`,
                       },
                     ]}
                   />
                 </View>
                 <ThemedText
-                  type={isCurrentMonth ? 'smallBold' : 'small'}
-                  themeColor={isCurrentMonth ? undefined : 'textSecondary'}
-                  style={styles.monthLabel}>
+                  style={[styles.monthLabel, isCurrentMonth && styles.currentMonthLabel]}>
                   {month.label}
                 </ThemedText>
               </View>
@@ -80,12 +84,12 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
           })}
           <View
             pointerEvents="none"
-            style={[styles.baseline, { backgroundColor: theme.backgroundSelected }]}
+            style={styles.baseline}
           />
         </View>
       ) : (
-        <View style={[styles.emptyChart, { backgroundColor: theme.backgroundElement }]}>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+        <View style={styles.emptyChart}>
+          <ThemedText type="small" style={styles.emptyText}>
             Registra gastos para empezar a comparar tus meses.
           </ThemedText>
         </View>
@@ -95,21 +99,45 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
 }
 
 const styles = StyleSheet.create({
+  decoration: {
+    height: 90,
+    opacity: 0.65,
+    position: 'absolute',
+    right: -3,
+    top: 47,
+    transform: [{ rotate: '12deg' }],
+    width: 38,
+  },
   latestAmount: {
     alignItems: 'flex-end',
+    paddingRight: 5,
+    zIndex: 2,
+  },
+  latestLabel: {
+    color: reportPalette.ink,
+    fontFamily: Fonts.serif,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 20,
   },
   amount: {
+    color: reportPalette.expense,
+    fontFamily: Fonts.serif,
+    fontSize: 20,
     fontVariant: ['tabular-nums'],
+    fontWeight: '500',
+    lineHeight: 25,
   },
   chart: {
     flexDirection: 'row',
-    gap: Spacing.two,
+    gap: 6,
     position: 'relative',
+    zIndex: 1,
   },
   column: {
     alignItems: 'center',
     flex: 1,
-    gap: Spacing.two,
+    gap: 8,
     minWidth: 0,
   },
   barArea: {
@@ -118,7 +146,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   barValue: {
+    color: reportPalette.ink,
+    fontFamily: Fonts.serif,
     fontSize: 10,
+    fontWeight: '400',
     left: -6,
     lineHeight: 14,
     position: 'absolute',
@@ -126,17 +157,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   bar: {
+    alignSelf: 'center',
     bottom: 0,
     borderRadius: 7,
+    maxWidth: 44,
     minHeight: 0,
     position: 'absolute',
-    width: '100%',
+    width: '82%',
   },
   monthLabel: {
-    fontSize: 12,
+    color: reportPalette.muted,
+    fontFamily: Fonts.serif,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 18,
     textAlign: 'center',
   },
+  currentMonthLabel: {
+    color: reportPalette.ink,
+    fontWeight: '700',
+  },
   baseline: {
+    backgroundColor: reportPalette.border,
     bottom: 27,
     height: StyleSheet.hairlineWidth,
     left: 0,
@@ -145,12 +187,15 @@ const styles = StyleSheet.create({
   },
   emptyChart: {
     alignItems: 'center',
+    backgroundColor: reportPalette.cream,
     borderRadius: 12,
     height: chartHeight,
     justifyContent: 'center',
     padding: Spacing.four,
   },
   emptyText: {
+    color: reportPalette.muted,
+    fontFamily: Fonts.serif,
     textAlign: 'center',
   },
 });

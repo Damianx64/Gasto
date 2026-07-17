@@ -1,62 +1,41 @@
+import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Fonts, Spacing } from '@/constants/theme';
 import { CategoryIcon } from '@/features/categories/components/category-icon';
 import type { CategoryExpense } from '@/features/reports/report-data';
+import { reportDecorations, reportPalette } from '@/features/reports/report-theme';
 import { formatCurrency } from '@/features/transactions/formatters';
-import { useTheme } from '@/hooks/use-theme';
 
 import { ReportCard } from './report-card';
 
-const chartSize = 164;
-const chartCenter = chartSize / 2;
-const chartRadius = chartSize / 2 - 5;
-const maxLegendItems = 5;
+const maxDisplayedCategories = 3;
 const otherCategoriesColor = '#8B919B';
 
-function getPoint(angle: number) {
-  const radians = ((angle - 90) * Math.PI) / 180;
-
-  return {
-    x: chartCenter + chartRadius * Math.cos(radians),
-    y: chartCenter + chartRadius * Math.sin(radians),
-  };
-}
-
-function getSlicePath(startAngle: number, endAngle: number) {
-  const start = getPoint(startAngle);
-  const end = getPoint(endAngle);
-  const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
-
-  return [
-    `M ${chartCenter} ${chartCenter}`,
-    `L ${start.x} ${start.y}`,
-    `A ${chartRadius} ${chartRadius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`,
-    'Z',
-  ].join(' ');
+function getSoftCategoryColor(color?: string | null) {
+  return color && /^#[0-9A-F]{6}$/i.test(color) ? `${color}22` : reportPalette.oliveSoft;
 }
 
 function getDisplayedCategories(categories: CategoryExpense[]) {
-  if (categories.length <= maxLegendItems) return categories;
+  const categoriesWithExpenses = categories.filter((category) => category.amount > 0);
 
-  const principalCategories = categories.slice(0, maxLegendItems - 1);
-  const otherCategories = categories.slice(maxLegendItems - 1);
-  const amount = otherCategories.reduce((total, category) => total + category.amount, 0);
-  const percentage = otherCategories.reduce(
-    (total, category) => total + category.percentage,
-    0,
-  );
+  if (categoriesWithExpenses.length <= maxDisplayedCategories) return categoriesWithExpenses;
+
+  const principalCategories = categoriesWithExpenses.slice(0, maxDisplayedCategories - 1);
+  const otherCategories = categoriesWithExpenses.slice(maxDisplayedCategories - 1);
 
   return [
     ...principalCategories,
     {
-      amount,
+      amount: otherCategories.reduce((total, category) => total + category.amount, 0),
       color: otherCategoriesColor,
       icon_key: null,
       name: 'Otras categorías',
-      percentage,
+      percentage: otherCategories.reduce(
+        (total, category) => total + category.percentage,
+        0,
+      ),
     },
   ];
 }
@@ -68,83 +47,54 @@ export function CategoryExpensesChart({
   categories: CategoryExpense[];
   period: string;
 }) {
-  const theme = useTheme();
-  const displayedCategories = getDisplayedCategories(
-    categories.filter((category) => category.amount > 0),
-  );
-  const total = displayedCategories.reduce((sum, category) => sum + category.amount, 0);
-  let currentAngle = 0;
+  const displayedCategories = getDisplayedCategories(categories);
 
   return (
     <ReportCard description={`Distribución de ${period}`} title="Gastos por categoría">
+      <Image
+        accessible={false}
+        contentFit="contain"
+        pointerEvents="none"
+        source={reportDecorations.categories}
+        style={styles.decoration}
+      />
+
       {displayedCategories.length ? (
-        <View style={styles.chartLayout}>
-          <View
-            accessible
-            accessibilityLabel={`Gráfica de pastel de gastos por categoría. Total: ${formatCurrency(total)}`}
-            style={styles.pieContainer}>
-            <Svg height={chartSize} viewBox={`0 0 ${chartSize} ${chartSize}`} width={chartSize}>
-              {displayedCategories.length === 1 ? (
-                <Circle
-                  cx={chartCenter}
-                  cy={chartCenter}
-                  fill={displayedCategories[0].color}
-                  r={chartRadius}
-                />
-              ) : (
-                displayedCategories.map((category) => {
-                  const startAngle = currentAngle;
-                  const endAngle = startAngle + (category.amount / total) * 360;
-                  currentAngle = endAngle;
-
-                  return (
-                    <Path
-                      d={getSlicePath(startAngle, endAngle)}
-                      fill={category.color}
-                      key={category.name}
-                      stroke={theme.background}
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                    />
-                  );
-                })
-              )}
-            </Svg>
-          </View>
-
-          <View style={styles.legend}>
-            {displayedCategories.map((category) => (
+        <View style={styles.categoriesRow}>
+          {displayedCategories.map((category, index) => (
+            <View key={category.name} style={styles.categoryCell}>
+              {index > 0 ? <View pointerEvents="none" style={styles.divider} /> : null}
               <View
                 accessible
                 accessibilityLabel={`${category.name}: ${formatCurrency(category.amount)}, ${category.percentage.toFixed(0)} por ciento`}
-                key={category.name}
-                style={styles.legendItem}>
+                style={styles.categoryItem}>
                 <CategoryIcon
-                  color={category.color}
+                  backgroundColor={getSoftCategoryColor(category.color)}
+                  iconColor={category.color}
                   iconKey={category.icon_key}
-                  size={28}
-                  symbolSize={16}
+                  size={48}
+                  symbolSize={23}
                 />
-                <View style={styles.legendText}>
-                  <View style={styles.legendHeader}>
-                    <ThemedText type="smallBold" numberOfLines={1} style={styles.categoryName}>
-                      {category.name}
-                    </ThemedText>
-                    <ThemedText type="smallBold" style={styles.percentage}>
-                      {category.percentage.toFixed(0)}%
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="small" themeColor="textSecondary" style={styles.amount}>
-                    {formatCurrency(category.amount)}
-                  </ThemedText>
-                </View>
+                <ThemedText numberOfLines={1} style={styles.categoryName}>
+                  {category.name}
+                </ThemedText>
+                <ThemedText
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                  numberOfLines={1}
+                  style={[styles.amount, { color: category.color }]}>
+                  {formatCurrency(category.amount)}
+                </ThemedText>
+                <ThemedText style={styles.percentage}>
+                  {category.percentage.toFixed(0)}%
+                </ThemedText>
               </View>
-            ))}
-          </View>
+            </View>
+          ))}
         </View>
       ) : (
-        <View style={[styles.empty, { backgroundColor: theme.backgroundElement }]}>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
+        <View style={styles.empty}>
+          <ThemedText type="small" style={styles.emptyText}>
             Tus categorías aparecerán aquí cuando registres un gasto este mes.
           </ThemedText>
         </View>
@@ -154,54 +104,78 @@ export function CategoryExpensesChart({
 }
 
 const styles = StyleSheet.create({
-  chartLayout: {
-    alignItems: 'center',
+  decoration: {
+    height: 78,
+    opacity: 0.62,
+    position: 'absolute',
+    right: -4,
+    top: 1,
+    transform: [{ rotate: '13deg' }],
+    width: 82,
+  },
+  categoriesRow: {
+    alignItems: 'stretch',
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.four,
-    justifyContent: 'center',
+    minHeight: 130,
+    zIndex: 1,
   },
-  pieContainer: {
-    height: chartSize,
-    width: chartSize,
-  },
-  legend: {
-    flex: 1,
-    gap: 10,
-    minWidth: 150,
-  },
-  legendItem: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  legendText: {
+  categoryCell: {
     flex: 1,
     minWidth: 0,
+    position: 'relative',
   },
-  legendHeader: {
+  divider: {
+    backgroundColor: reportPalette.border,
+    bottom: 2,
+    left: 0,
+    position: 'absolute',
+    top: 2,
+    width: StyleSheet.hairlineWidth,
+  },
+  categoryItem: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: Spacing.two,
+    flex: 1,
+    gap: 3,
+    justifyContent: 'center',
+    minWidth: 0,
+    paddingHorizontal: 6,
   },
   categoryName: {
-    flex: 1,
-  },
-  percentage: {
-    fontVariant: ['tabular-nums'],
+    color: reportPalette.ink,
+    fontFamily: Fonts.serif,
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 20,
+    marginTop: 2,
+    maxWidth: '100%',
   },
   amount: {
-    fontSize: 12,
+    fontFamily: Fonts.serif,
+    fontSize: 17,
     fontVariant: ['tabular-nums'],
+    fontWeight: '500',
+    lineHeight: 22,
+    maxWidth: '100%',
+  },
+  percentage: {
+    color: reportPalette.oliveDark,
+    fontFamily: Fonts.serif,
+    fontSize: 14,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '500',
+    lineHeight: 19,
   },
   empty: {
     alignItems: 'center',
+    backgroundColor: reportPalette.cream,
     borderRadius: 12,
     justifyContent: 'center',
-    minHeight: 164,
+    minHeight: 130,
     padding: Spacing.four,
   },
   emptyText: {
+    color: reportPalette.muted,
+    fontFamily: Fonts.serif,
     textAlign: 'center',
   },
 });
