@@ -260,7 +260,11 @@ export default function SettingsScreen() {
                       {deletingCategoryId === category.id ? (
                         <ActivityIndicator color={palette.danger} size="small" />
                       ) : (
-                        <SettingsText style={styles.deleteButtonText}>Eliminar</SettingsText>
+                        <SymbolView
+                          name={{ android: 'delete', ios: 'trash', web: 'delete' }}
+                          size={24}
+                          tintColor={palette.danger}
+                        />
                       )}
                     </Pressable>
                   </View>
@@ -444,13 +448,13 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   categoryName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '500',
     letterSpacing: -0.25,
     lineHeight: 28,
   },
   categoryType: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '400',
     lineHeight: 23,
   },
@@ -460,26 +464,19 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     borderRadius: 15,
     borderWidth: 1,
-    height: 54,
+    height: 50,
     justifyContent: 'center',
-    width: 52,
+    width: 45,
     zIndex: 1,
   },
   deleteButton: {
     alignItems: 'center',
     backgroundColor: palette.dangerPale,
     borderRadius: 15,
+    height: 54,
     justifyContent: 'center',
-    minHeight: 54,
-    minWidth: 88,
-    paddingHorizontal: 13,
+    width: 52,
     zIndex: 1,
-  },
-  deleteButtonText: {
-    color: palette.danger,
-    fontSize: 17,
-    fontWeight: '500',
-    lineHeight: 23,
   },
   stateCard: {
     alignItems: 'center',
