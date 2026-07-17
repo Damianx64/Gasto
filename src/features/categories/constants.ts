@@ -1,14 +1,16 @@
 import type { AndroidSymbol, SFSymbol } from 'expo-symbols';
 
 export const CATEGORY_COLORS = [
-  '#ef4444',
-  '#f97316',
-  '#eab308',
-  '#22c55e',
-  '#06b6d4',
-  '#3b82f6',
-  '#8b5cf6',
-  '#000000',
+  '#C65B43',
+  '#D88758',
+  '#D5A83D',
+  '#84c79a',
+  '#5C8B82',
+  '#497753',
+  '#5eb3c2',
+  '#3F6D91',
+  '#7B668C',
+  '#4D5047',
 ] as const;
 
 export const CATEGORY_ICONS = [
@@ -49,7 +51,7 @@ export const CATEGORY_ICONS = [
   },
   {
     key: 'entertainment',
-    label: 'Entretenimiento',
+    label: 'Ocio',
     symbol: { android: 'movie', ios: 'film.fill', web: 'movie' },
   },
   {
