@@ -1,63 +1,29 @@
-import { requireCurrentUserId } from '@/features/auth/auth.api';
-import { refreshTransactionsCache } from '@/features/transactions/transactions.cache';
-import { supabase } from '@/lib/supabase';
+import {
+  createLocalCategory,
+  deleteLocalCategory,
+  getLocalCategory,
+  listLocalCategories,
+  updateLocalCategory,
+} from '@/features/offline/repository';
 
-import { refreshCategoriesCache } from './categories.cache';
 import type { CategoryInput } from './types';
 
-export { getCategory, listCategories } from './categories.cache';
+export async function listCategories() {
+  return listLocalCategories();
+}
+
+export async function getCategory(categoryId: string) {
+  return getLocalCategory(categoryId);
+}
 
 export async function createCategory(input: CategoryInput) {
-  const userId = await requireCurrentUserId();
-  const now = new Date().toISOString();
-  const { error } = await supabase.from('categories').insert({
-    color: input.color,
-    created_at: now,
-    icon_key: input.iconKey,
-    name: input.name,
-    type: input.type,
-    updated_at: now,
-    user_id: userId,
-  });
-
-  if (error) throw error;
-  await refreshCategoriesCache(userId);
+  return createLocalCategory(input);
 }
 
 export async function updateCategory(categoryId: string, input: CategoryInput) {
-  const userId = await requireCurrentUserId();
-  const { error } = await supabase
-    .from('categories')
-    .update({
-      color: input.color,
-      icon_key: input.iconKey,
-      name: input.name,
-      type: input.type,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', categoryId)
-    .eq('user_id', userId);
-
-  if (error) throw error;
-  await Promise.all([refreshCategoriesCache(userId), refreshTransactionsCache(userId)]);
+  return updateLocalCategory(categoryId, input);
 }
 
 export async function deleteCategory(categoryId: string) {
-  const userId = await requireCurrentUserId();
-  const { error: transactionsError } = await supabase
-    .from('transactions')
-    .update({ category_id: null })
-    .eq('user_id', userId)
-    .eq('category_id', categoryId);
-
-  if (transactionsError) throw transactionsError;
-
-  const { error } = await supabase
-    .from('categories')
-    .delete()
-    .eq('id', categoryId)
-    .eq('user_id', userId);
-
-  if (error) throw error;
-  await Promise.all([refreshCategoriesCache(userId), refreshTransactionsCache(userId)]);
+  return deleteLocalCategory(categoryId);
 }

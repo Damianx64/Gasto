@@ -42,3 +42,14 @@ src/
 
 Los archivos de `app/` solo definen rutas. La logica de cada flujo vive en su modulo de
 `src/features/`, y el acceso a Supabase se concentra en los archivos `*.api.ts`.
+
+## Modo offline
+
+En Android e iOS, movimientos y categorías se leen y escriben primero en SQLite. Los cambios
+pendientes se sincronizan automáticamente con Supabase al recuperar conexión, abrir la app o
+volver del segundo plano. El primer inicio de sesión y la primera descarga requieren internet.
+
+Antes de usar una versión de la app con esta capa, aplica en Supabase la migración
+`supabase/migrations/202607170001_offline_sync.sql`. La migración añade los metadatos de
+conflicto, conserva eliminaciones como tombstones y crea el RPC autenticado
+`sync_finance_data`.

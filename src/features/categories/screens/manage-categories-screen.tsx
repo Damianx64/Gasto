@@ -8,7 +8,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText, type ThemedTextProps } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
-import { signOut } from '@/features/auth/auth.api';
+import { requireOfflineUserId, signOut } from '@/features/auth/auth.api';
+import { clearLocalUserData, getLocalUserState } from '@/features/offline/database';
+import { useSync } from '@/features/offline/sync-context';
 import { getErrorMessage } from '@/lib/errors';
 
 import { deleteCategory, listCategories } from '../categories.api';
@@ -51,6 +53,7 @@ function SettingsText({ style, themeColor, ...props }: ThemedTextProps) {
 }
 
 export default function SettingsScreen() {
+  const { revision, syncNow } = useSync();
   const [categories, setCategories] = useState<Category[]>([]);
   const [message, setMessage] = useState('');
   const [categoryError, setCategoryError] = useState('');
@@ -77,7 +80,7 @@ export default function SettingsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadCategories(hasLoadedCategoriesRef.current ? 'silent' : 'initial');
-    }, [loadCategories]),
+    }, [loadCategories, revision]),
   );
 
   async function handleDeleteCategory(category: Category) {
@@ -120,7 +123,19 @@ export default function SettingsScreen() {
     setIsSigningOut(true);
 
     try {
+      const userId = await requireOfflineUserId();
+      if ((await getLocalUserState(userId)).pendingCount > 0) {
+        const synchronized = await syncNow();
+        const remainingPending = (await getLocalUserState(userId)).pendingCount;
+        if (!synchronized || remainingPending > 0) {
+          throw new Error(
+            'No puedes cerrar sesión mientras haya cambios pendientes. Conéctate y vuelve a intentarlo.',
+          );
+        }
+      }
+
       await signOut();
+      await clearLocalUserData(userId);
       router.replace('/login');
     } catch (error) {
       setMessage(getErrorMessage(error));

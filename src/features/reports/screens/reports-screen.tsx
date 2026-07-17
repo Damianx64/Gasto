@@ -19,11 +19,13 @@ import { IncomeExpenseChart } from '@/features/reports/components/income-expense
 import { MonthlyExpensesChart } from '@/features/reports/components/monthly-expenses-chart';
 import { buildReportsSummary } from '@/features/reports/report-data';
 import { reportDecorations, reportPalette } from '@/features/reports/report-theme';
+import { useSync } from '@/features/offline/sync-context';
 import { listTransactions } from '@/features/transactions/transactions.api';
 import type { TransactionListItem } from '@/features/transactions/types';
 import { getErrorMessage } from '@/lib/errors';
 
 export default function ReportsScreen() {
+  const { revision, syncNow } = useSync();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -37,7 +39,8 @@ export default function ReportsScreen() {
     if (mode === 'refresh') setIsRefreshing(true);
 
     try {
-      setTransactions(await listTransactions({ forceRefresh: mode === 'refresh' }));
+      if (mode === 'refresh') await syncNow();
+      setTransactions(await listTransactions());
       hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -45,12 +48,12 @@ export default function ReportsScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [syncNow]);
 
   useFocusEffect(
     useCallback(() => {
       loadReports(hasLoadedRef.current ? 'silent' : 'initial');
-    }, [loadReports]),
+    }, [loadReports, revision]),
   );
 
   const reports = useMemo(() => buildReportsSummary(transactions), [transactions]);

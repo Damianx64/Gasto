@@ -17,6 +17,8 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { useAuthSession } from '@/features/auth/use-auth-session';
 import { CategoryIcon } from '@/features/categories/components/category-icon';
+import { SyncStatusModal } from '@/features/offline/components/sync-status-modal';
+import { useSync } from '@/features/offline/sync-context';
 import {
   formatCurrency,
   formatTransactionDate,
@@ -169,18 +171,44 @@ function TrendLabel({ inverted, trend }: { inverted?: boolean; trend: Trend | nu
 }
 
 export default function DashboardScreen() {
-  const { session } = useAuthSession();
+  const { offlineAccount, session } = useAuthSession();
+  const { connectivity, pendingCount, revision, status, syncNow } = useSync();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSyncDetailsVisible, setIsSyncDetailsVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const hasLoadedRef = useRef(false);
 
   const userName = getUserName(
-    session?.user.email,
-    session?.user.user_metadata?.user_name,
+    session?.user.email ?? offlineAccount?.email ?? undefined,
+    session?.user.user_metadata?.user_name ?? offlineAccount?.userName,
   );
+  const isSyncing = status === 'syncing';
+  const hasSyncError = status === 'error';
+  const syncAccessibilityLabel = `${
+    isSyncing
+      ? 'Sincronizando'
+      : connectivity === 'offline'
+        ? 'Sin conexión'
+        : hasSyncError
+          ? 'Problema de sincronización'
+          : connectivity === 'online'
+            ? 'Conectado'
+            : 'Comprobando conexión'
+  }${
+    pendingCount > 0
+      ? `, ${pendingCount} cambio${pendingCount === 1 ? '' : 's'} pendiente${pendingCount === 1 ? '' : 's'}`
+      : ', sin cambios pendientes'
+  }`;
+  const syncIndicatorColor = hasSyncError
+    ? '#B65336'
+    : connectivity === 'offline'
+      ? '#8B8B84'
+      : connectivity === 'online'
+        ? palette.olive
+        : '#B9B5AC';
 
   const loadDashboard = useCallback(async (mode: 'initial' | 'refresh' | 'silent') => {
     setErrorMessage('');
@@ -189,7 +217,8 @@ export default function DashboardScreen() {
     if (mode === 'refresh') setIsRefreshing(true);
 
     try {
-      setTransactions(await listTransactions({ forceRefresh: mode === 'refresh' }));
+      if (mode === 'refresh') await syncNow();
+      setTransactions(await listTransactions());
       hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -197,12 +226,12 @@ export default function DashboardScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [syncNow]);
 
   useFocusEffect(
     useCallback(() => {
       loadDashboard(hasLoadedRef.current ? 'silent' : 'initial');
-    }, [loadDashboard]),
+    }, [loadDashboard, revision]),
   );
 
   const dashboard = useMemo(() => {
@@ -316,17 +345,32 @@ export default function DashboardScreen() {
               </View>
 
               <Pressable
-                accessibilityHint="Esta opción estará disponible próximamente"
-                accessibilityLabel="Notificaciones"
+                accessibilityHint="Abre el detalle de sincronización"
+                accessibilityLabel={syncAccessibilityLabel}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: true }}
-                disabled
-                style={styles.iconButton}>
+                onPress={() => setIsSyncDetailsVisible(true)}
+                style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}>
                 <SymbolView
                   name={{ android: 'notifications', ios: 'bell', web: 'notifications' }}
                   size={23}
                   tintColor={palette.oliveDark}
                 />
+                <View pointerEvents="none" style={styles.syncStateIndicator}>
+                  {isSyncing ? (
+                    <ActivityIndicator color={palette.olive} size={11} />
+                  ) : (
+                    <View
+                      style={[styles.syncStateDot, { backgroundColor: syncIndicatorColor }]}
+                    />
+                  )}
+                </View>
+                {pendingCount > 0 ? (
+                  <View pointerEvents="none" style={styles.pendingBadge}>
+                    <DashboardText numberOfLines={1} style={styles.pendingBadgeText}>
+                      {pendingCount > 99 ? '99+' : pendingCount}
+                    </DashboardText>
+                  </View>
+                ) : null}
               </Pressable>
             </View>
 
@@ -671,6 +715,10 @@ export default function DashboardScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+      <SyncStatusModal
+        onClose={() => setIsSyncDetailsVisible(false)}
+        visible={isSyncDetailsVisible}
+      />
     </ThemedView>
   );
 }
@@ -765,7 +813,47 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     height: 48,
     justifyContent: 'center',
+    position: 'relative',
     width: 48,
+  },
+  syncStateIndicator: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.background,
+    borderRadius: 9,
+    borderWidth: 2,
+    bottom: -1,
+    height: 18,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: -1,
+    width: 18,
+  },
+  syncStateDot: {
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  pendingBadge: {
+    alignItems: 'center',
+    backgroundColor: palette.terracotta,
+    borderColor: palette.background,
+    borderRadius: 10,
+    borderWidth: 2,
+    justifyContent: 'center',
+    minHeight: 20,
+    minWidth: 20,
+    paddingHorizontal: 4,
+    position: 'absolute',
+    right: -6,
+    top: -6,
+  },
+  pendingBadgeText: {
+    color: palette.white,
+    fontSize: 10,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '700',
+    lineHeight: 12,
   },
   loadingState: {
     alignItems: 'center',

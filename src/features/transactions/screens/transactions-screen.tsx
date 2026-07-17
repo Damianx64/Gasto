@@ -17,6 +17,7 @@ import { ThemedText, type ThemedTextProps } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { CategoryIcon } from '@/features/categories/components/category-icon';
+import { useSync } from '@/features/offline/sync-context';
 import { getErrorMessage } from '@/lib/errors';
 
 import {
@@ -148,6 +149,7 @@ function groupTransactionsByDay(transactions: TransactionListItem[]) {
 }
 
 export default function TransactionsScreen() {
+  const { revision, syncNow } = useSync();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('month');
   const [isLoading, setIsLoading] = useState(true);
@@ -173,7 +175,8 @@ export default function TransactionsScreen() {
     if (mode === 'refresh') setIsRefreshing(true);
 
     try {
-      setTransactions(await listTransactions({ forceRefresh: mode === 'refresh' }));
+      if (mode === 'refresh') await syncNow();
+      setTransactions(await listTransactions());
       hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -181,12 +184,12 @@ export default function TransactionsScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [syncNow]);
 
   useFocusEffect(
     useCallback(() => {
       loadTransactions(hasLoadedRef.current ? 'silent' : 'initial');
-    }, [loadTransactions]),
+    }, [loadTransactions, revision]),
   );
 
   function handleTransactionPress(transactionId: string) {
