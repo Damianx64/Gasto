@@ -15,6 +15,10 @@ App de finanzas personales construida con Expo Router.
    ```bash
    npx expo start
    ```
+   ó
+   ```bash
+   npm run android
+   ```
 
 ## Estructura
 
