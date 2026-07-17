@@ -81,7 +81,7 @@ export default function ReportsScreen() {
                 />
               </View>
               <ThemedText style={styles.subtitle}>
-                Entiende cómo se mueve tu dinero.
+                Gráficas de gastos mensuales.
               </ThemedText>
             </View>
 
