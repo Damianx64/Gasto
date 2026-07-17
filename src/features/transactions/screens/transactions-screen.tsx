@@ -1,8 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { Image } from 'expo-image';
+import { SymbolView } from 'expo-symbols';
 import { router, type Href, useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   SectionList,
   type SectionListData,
   StyleSheet,
@@ -10,9 +13,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
+import { ThemedText, type ThemedTextProps } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { CategoryIcon } from '@/features/categories/components/category-icon';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -31,6 +34,26 @@ type TransactionSection = {
   title: string;
 };
 
+const palette = {
+  background: '#FBF8F1',
+  border: '#E4DAC9',
+  ink: '#303A29',
+  muted: '#77756E',
+  olive: '#617149',
+  oliveDark: '#4E5C39',
+  olivePale: '#E5E7DB',
+  surface: '#FEFCF7',
+  terracotta: '#C45D32',
+  white: '#FFFDF8',
+} as const;
+
+const decorations = {
+  flowersPrimary: require('../../../../assets/decorations/flores_vertical_2.webp'),
+  flowersSecondary: require('../../../../assets/decorations/flores_vertical_3.webp'),
+  leaves: require('../../../../assets/decorations/hojas_horizontal_1.webp'),
+  stem: require('../../../../assets/decorations/planta_vertical_1.webp'),
+};
+
 const filterOptions: { label: string; value: FilterPeriod }[] = [
   { label: 'Hoy', value: 'today' },
   { label: 'Semana', value: 'week' },
@@ -42,6 +65,23 @@ const dayHeaderFormatter = new Intl.DateTimeFormat('es-MX', {
   day: 'numeric',
   month: 'long',
 });
+
+function TransactionsText({ style, themeColor, ...props }: ThemedTextProps) {
+  return (
+    <ThemedText
+      {...props}
+      style={[
+        styles.transactionsText,
+        themeColor === 'textSecondary' && styles.secondaryText,
+        style,
+      ]}
+    />
+  );
+}
+
+function getSoftCategoryColor(color?: string | null) {
+  return color && /^#[0-9A-F]{6}$/i.test(color) ? `${color}22` : palette.olivePale;
+}
 
 function parseTransactionDate(date: string) {
   const [year, month, day] = date.split('-').map(Number);
@@ -161,9 +201,10 @@ export default function TransactionsScreen() {
     }
   }
 
-  function renderTransaction({ item }: { item: TransactionListItem }) {
+  function renderTransaction({ item, index }: { item: TransactionListItem; index: number }) {
     const isIncome = item.type === 'income';
     const category = getTransactionCategory(item);
+    const categoryColor = category?.color || palette.olive;
 
     return (
       <Pressable
@@ -171,26 +212,54 @@ export default function TransactionsScreen() {
         accessibilityRole="button"
         onPress={() => handleTransactionPress(item.id)}
         style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}>
-        <CategoryIcon
-          color={category?.color}
-          iconKey={category?.icon_key}
-          size={36}
-          symbolSize={20}
+        <Image
+          accessible={false}
+          contentFit="contain"
+          pointerEvents="none"
+          source={index % 2 === 0 ? decorations.flowersPrimary : decorations.flowersSecondary}
+          style={styles.itemDecoration}
         />
-        <View style={styles.itemMain}>
-          <ThemedText type="smallBold">
-            {item.description || getTransactionCategoryName(item)}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {getTransactionCategoryName(item)}
-          </ThemedText>
+
+        <View style={styles.iconCluster}>
+          <CategoryIcon
+            backgroundColor={getSoftCategoryColor(categoryColor)}
+            iconColor={categoryColor}
+            iconKey={category?.icon_key}
+            size={54}
+            symbolSize={26}
+          />
+          <Image
+            accessible={false}
+            contentFit="contain"
+            pointerEvents="none"
+            source={decorations.leaves}
+            style={styles.iconDecoration}
+          />
         </View>
-        <ThemedText
-          type="smallBold"
-          style={[styles.amount, isIncome ? styles.incomeAmount : styles.expenseAmount]}>
+
+        <View style={styles.itemMain}>
+          <TransactionsText numberOfLines={1} style={styles.itemTitle}>
+            {item.description || getTransactionCategoryName(item)}
+          </TransactionsText>
+          <TransactionsText
+            numberOfLines={1}
+            themeColor="textSecondary"
+            style={styles.itemSubtitle}>
+            {getTransactionCategoryName(item)}
+          </TransactionsText>
+        </View>
+
+        <TransactionsText
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}
+          numberOfLines={1}
+          style={[
+            styles.amount,
+            isIncome ? styles.incomeAmount : styles.expenseAmount,
+          ]}>
           {isIncome ? '+' : '-'}
           {formatCurrency(item.amount)}
-        </ThemedText>
+        </TransactionsText>
       </Pressable>
     );
   }
@@ -202,110 +271,175 @@ export default function TransactionsScreen() {
   }) {
     return (
       <View style={styles.sectionHeader}>
-        <ThemedText type="smallBold" style={styles.sectionHeaderText}>
-          {section.title}
-        </ThemedText>
+        <TransactionsText style={styles.sectionHeaderText}>{section.title}</TransactionsText>
+        <Image
+          accessible={false}
+          contentFit="contain"
+          pointerEvents="none"
+          source={decorations.stem}
+          style={styles.sectionDecoration}
+        />
       </View>
     );
   }
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.header}>
-          <ThemedText type="subtitle">Movimientos</ThemedText>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => loadTransactions('refresh')}
-            style={({ pressed }) => [styles.refreshButton, pressed && styles.buttonPressed]}>
-            <ThemedText type="smallBold" style={styles.refreshButtonText}>
-              Refrescar
-            </ThemedText>
-          </Pressable>
-        </View>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <View style={styles.titleCluster}>
+              <TransactionsText adjustsFontSizeToFit numberOfLines={1} style={styles.title}>
+                Movimientos
+              </TransactionsText>
+              <Image
+                accessible={false}
+                contentFit="contain"
+                pointerEvents="none"
+                source={decorations.leaves}
+                style={styles.titleDecoration}
+              />
+            </View>
 
-        <View style={styles.filterSegment}>
-          {filterOptions.map((option) => {
-            const isSelected = selectedPeriod === option.value;
-
-            return (
-              <Pressable
-                accessibilityRole="button"
-                key={option.value}
-                onPress={() => setSelectedPeriod(option.value)}
-                style={({ pressed }) => [
-                  styles.filterButton,
-                  isSelected && styles.filterButtonActive,
-                  pressed && styles.buttonPressed,
-                ]}>
-                <ThemedText
-                  type="smallBold"
-                  style={isSelected && styles.filterButtonTextActive}>
-                  {option.label}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {isLoading ? (
-          <View style={styles.stateContainer}>
-            <ActivityIndicator />
-            <ThemedText type="small" themeColor="textSecondary">
-              Cargando movimientos...
-            </ThemedText>
-          </View>
-        ) : errorMessage ? (
-          <View style={styles.stateContainer}>
-            <ThemedText type="smallBold" style={styles.errorText}>
-              {errorMessage}
-            </ThemedText>
             <Pressable
+              accessibilityLabel="Refrescar movimientos"
               accessibilityRole="button"
-              onPress={() => loadTransactions('initial')}
-              style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}>
-              <ThemedText type="smallBold" style={styles.primaryButtonText}>
-                Reintentar
-              </ThemedText>
+              accessibilityState={{ busy: isRefreshing, disabled: isRefreshing }}
+              disabled={isRefreshing}
+              onPress={() => loadTransactions('refresh')}
+              style={({ pressed }) => [
+                styles.refreshButton,
+                pressed && styles.buttonPressed,
+              ]}>
+              <TransactionsText type="smallBold" style={styles.refreshButtonText}>
+                Refrescar
+              </TransactionsText>
+              {isRefreshing ? (
+                <ActivityIndicator color={palette.white} size="small" />
+              ) : (
+                <SymbolView
+                  name={{ android: 'refresh', ios: 'arrow.clockwise', web: 'refresh' }}
+                  size={19}
+                  tintColor={palette.white}
+                />
+              )}
             </Pressable>
           </View>
-        ) : (
-          <SectionList
-            contentContainerStyle={[
-              styles.listContent,
-              transactionSections.length === 0 && styles.emptyListContent,
-            ]}
-            sections={transactionSections}
-            keyExtractor={(item) => item.id}
-            ListEmptyComponent={
-              <View style={styles.stateContainer}>
-                <ThemedText type="smallBold">
-                  {transactions.length === 0
-                    ? 'Aún no hay movimientos.'
-                    : 'No hay movimientos en este periodo.'}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
-                  {transactions.length === 0
-                    ? 'Crea tu primer movimiento con el botón +.'
-                    : 'Prueba con otro filtro o registra un movimiento nuevo.'}
-                </ThemedText>
+
+          <View style={styles.filterSegment}>
+            {filterOptions.map((option) => {
+              const isSelected = selectedPeriod === option.value;
+
+              return (
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => router.push('/transaction/new')}
-                  style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}>
-                  <ThemedText type="smallBold" style={styles.primaryButtonText}>
-                    Nuevo movimiento
-                  </ThemedText>
+                  accessibilityState={{ selected: isSelected }}
+                  key={option.value}
+                  onPress={() => setSelectedPeriod(option.value)}
+                  style={({ pressed }) => [
+                    styles.filterButton,
+                    isSelected && styles.filterButtonActive,
+                    pressed && styles.buttonPressed,
+                  ]}>
+                  <TransactionsText
+                    numberOfLines={1}
+                    style={[
+                      styles.filterButtonText,
+                      isSelected && styles.filterButtonTextActive,
+                    ]}>
+                    {option.label}
+                  </TransactionsText>
                 </Pressable>
-              </View>
-            }
-            onRefresh={() => loadTransactions('refresh')}
-            refreshing={isRefreshing}
-            renderItem={renderTransaction}
-            renderSectionHeader={renderSectionHeader}
-            stickySectionHeadersEnabled={false}
-          />
-        )}
+              );
+            })}
+          </View>
+
+          {isLoading ? (
+            <View style={styles.stateContainer}>
+              <ActivityIndicator color={palette.olive} />
+              <TransactionsText type="small" themeColor="textSecondary">
+                Preparando tus movimientos...
+              </TransactionsText>
+            </View>
+          ) : errorMessage ? (
+            <View style={styles.stateCard}>
+              <TransactionsText style={styles.stateTitle}>
+                No pudimos cargar tus movimientos
+              </TransactionsText>
+              <TransactionsText
+                type="small"
+                themeColor="textSecondary"
+                style={styles.stateText}>
+                {errorMessage}
+              </TransactionsText>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => loadTransactions('initial')}
+                style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]}>
+                <TransactionsText type="smallBold" style={styles.primaryButtonText}>
+                  Reintentar
+                </TransactionsText>
+              </Pressable>
+            </View>
+          ) : (
+            <SectionList
+              contentContainerStyle={[
+                styles.listContent,
+                transactionSections.length === 0 && styles.emptyListContent,
+              ]}
+              keyExtractor={(item) => item.id}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Image
+                    accessible={false}
+                    contentFit="contain"
+                    pointerEvents="none"
+                    source={decorations.flowersPrimary}
+                    style={styles.emptyDecoration}
+                  />
+                  <TransactionsText style={styles.stateTitle}>
+                    {transactions.length === 0
+                      ? 'Aún no hay movimientos'
+                      : 'No hay movimientos en este periodo'}
+                  </TransactionsText>
+                  <TransactionsText
+                    type="small"
+                    themeColor="textSecondary"
+                    style={styles.stateText}>
+                    {transactions.length === 0
+                      ? 'Crea tu primer movimiento con el botón +.'
+                      : 'Prueba con otro filtro o registra un movimiento nuevo.'}
+                  </TransactionsText>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => router.push('/transaction/new')}
+                    style={({ pressed }) => [
+                      styles.primaryButton,
+                      pressed && styles.buttonPressed,
+                    ]}>
+                    <TransactionsText type="smallBold" style={styles.primaryButtonText}>
+                      Nuevo movimiento
+                    </TransactionsText>
+                  </Pressable>
+                </View>
+              }
+              refreshControl={
+                <RefreshControl
+                  colors={[palette.olive]}
+                  onRefresh={() => loadTransactions('refresh')}
+                  refreshing={isRefreshing}
+                  tintColor={palette.olive}
+                />
+              }
+              renderItem={renderTransaction}
+              renderSectionHeader={renderSectionHeader}
+              sections={transactionSections}
+              showsVerticalScrollIndicator={false}
+              stickySectionHeadersEnabled={false}
+              style={styles.list}
+            />
+          )}
+        </View>
       </SafeAreaView>
     </ThemedView>
   );
@@ -313,88 +447,209 @@ export default function TransactionsScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: palette.background,
     flex: 1,
   },
   safeArea: {
+    backgroundColor: palette.background,
     flex: 1,
-    padding: Spacing.four,
+  },
+  content: {
+    alignSelf: 'center',
+    flex: 1,
+    maxWidth: 560,
+    paddingHorizontal: Spacing.three,
+    paddingTop: 10,
+    width: '100%',
+  },
+  transactionsText: {
+    color: palette.ink,
+    fontFamily: Fonts.serif,
+  },
+  secondaryText: {
+    color: palette.muted,
   },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: 10,
     justifyContent: 'space-between',
     marginBottom: Spacing.three,
+    minHeight: 64,
+  },
+  titleCluster: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    minWidth: 0,
+  },
+  title: {
+    flexShrink: 1,
+    fontSize: 36,
+    fontWeight: '500',
+    letterSpacing: -0.7,
+    lineHeight: 43,
+  },
+  titleDecoration: {
+    height: 30,
+    marginLeft: 6,
+    marginTop: 6,
+    opacity: 0.85,
+    transform: [{ rotate: '-8deg' }],
+    width: 35,
+  },
+  refreshButton: {
+    alignItems: 'center',
+    backgroundColor: palette.olive,
+    borderRadius: 18,
+    flexDirection: 'row',
+    gap: 7,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 15,
+  },
+  refreshButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '500',
   },
   filterSegment: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 18,
+    borderWidth: 1,
     flexDirection: 'row',
-    gap: Spacing.one,
-    marginBottom: Spacing.three,
-    padding: Spacing.one,
+    marginBottom: 15,
+    padding: 4,
   },
   filterButton: {
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: 15,
     flex: 1,
     justifyContent: 'center',
-    minHeight: 40,
+    minHeight: 43,
+    paddingHorizontal: 4,
   },
   filterButtonActive: {
-    backgroundColor: '#111827',
+    backgroundColor: '#8C9676',
+    elevation: 1,
+    shadowColor: '#4D503E',
+    shadowOffset: { height: 2, width: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+  },
+  filterButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 21,
   },
   filterButtonTextActive: {
-    color: '#ffffff',
+    color: palette.white,
   },
-  refreshButton: {
-    backgroundColor: '#111827',
-    borderRadius: 8,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  refreshButtonText: {
-    color: '#ffffff',
+  list: {
+    flex: 1,
   },
   listContent: {
-    paddingBottom: Spacing.six,
+    paddingBottom: BottomTabInset + Spacing.six,
   },
   emptyListContent: {
     flexGrow: 1,
+  },
+  sectionHeader: {
     justifyContent: 'center',
+    minHeight: 61,
+    paddingBottom: 10,
+    paddingTop: 13,
+    position: 'relative',
+  },
+  sectionHeaderText: {
+    fontSize: 21,
+    fontWeight: '500',
+    lineHeight: 27,
+    zIndex: 1,
+  },
+  sectionDecoration: {
+    height: 62,
+    opacity: 0.62,
+    position: 'absolute',
+    right: 3,
+    top: 0,
+    transform: [{ rotate: '7deg' }],
+    width: 28,
   },
   item: {
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 18,
+    borderWidth: 1,
     flexDirection: 'row',
-    gap: Spacing.three,
-    justifyContent: 'space-between',
-    marginBottom: Spacing.one,
-    padding: Spacing.three,
+    gap: 11,
+    marginBottom: 10,
+    minHeight: 88,
+    overflow: 'hidden',
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    position: 'relative',
   },
   itemPressed: {
-    opacity: 0.8,
+    opacity: 0.67,
+    transform: [{ scale: 0.995 }],
+  },
+  itemDecoration: {
+    bottom: -14,
+    height: 79,
+    opacity: 0.64,
+    position: 'absolute',
+    right: -8,
+    width: 37,
+  },
+  iconCluster: {
+    height: 58,
+    justifyContent: 'center',
+    position: 'relative',
+    width: 65,
+    zIndex: 1,
+  },
+  iconDecoration: {
+    bottom: 0,
+    height: 26,
+    opacity: 0.83,
+    position: 'absolute',
+    right: -2,
+    transform: [{ rotate: '-5deg' }],
+    width: 31,
+    zIndex: 2,
   },
   itemMain: {
     flex: 1,
-    gap: Spacing.one,
+    minWidth: 0,
+    zIndex: 1,
+  },
+  itemTitle: {
+    fontSize: 19,
+    fontWeight: '500',
+    lineHeight: 25,
+  },
+  itemSubtitle: {
+    fontSize: 15,
+    lineHeight: 21,
   },
   amount: {
-    minWidth: 110,
+    fontSize: 18,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '500',
+    lineHeight: 24,
+    maxWidth: 125,
+    paddingRight: 13,
     textAlign: 'right',
-  },
-  sectionHeader: {
-    paddingBottom: Spacing.two,
-    paddingTop: Spacing.three,
-  },
-  sectionHeaderText: {
-    color: '#374151',
+    zIndex: 1,
   },
   incomeAmount: {
-    color: '#15803d',
+    color: palette.oliveDark,
   },
   expenseAmount: {
-    color: '#dc2626',
+    color: palette.terracotta,
   },
   stateContainer: {
     alignItems: 'center',
@@ -402,26 +657,60 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     justifyContent: 'center',
   },
-  emptyText: {
+  stateCard: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 10,
+    justifyContent: 'center',
+    marginTop: Spacing.three,
+    minHeight: 280,
+    padding: Spacing.four,
+  },
+  emptyState: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+    justifyContent: 'center',
+    minHeight: 320,
+    overflow: 'hidden',
+    padding: Spacing.four,
+    position: 'relative',
+  },
+  emptyDecoration: {
+    height: 142,
+    opacity: 0.25,
+    position: 'absolute',
+    right: -2,
+    top: 48,
+    width: 58,
+  },
+  stateTitle: {
+    fontSize: 20,
+    fontWeight: '500',
+    lineHeight: 27,
     textAlign: 'center',
   },
-  errorText: {
-    color: '#dc2626',
+  stateText: {
+    maxWidth: 310,
     textAlign: 'center',
   },
   primaryButton: {
     alignItems: 'center',
-    backgroundColor: '#111827',
-    borderRadius: 8,
+    backgroundColor: palette.oliveDark,
+    borderRadius: 22,
     justifyContent: 'center',
-    minHeight: 44,
+    marginTop: 4,
+    minHeight: 42,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: palette.white,
+    fontWeight: '500',
   },
   buttonPressed: {
-    opacity: 0.75,
+    opacity: 0.68,
   },
 });
