@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DateTimePicker, {
   type DateTimePickerChangeEvent,
 } from '@expo/ui/community/datetime-picker';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import {
   ActivityIndicator,
@@ -84,11 +84,27 @@ function parseDateInput(date: string) {
 }
 
 function formatDateInput(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const year = Platform.OS === 'android' ? date.getUTCFullYear() : date.getFullYear();
+  const month = String(
+    (Platform.OS === 'android' ? date.getUTCMonth() : date.getMonth()) + 1,
+  ).padStart(2, '0');
+  const day = String(
+    Platform.OS === 'android' ? date.getUTCDate() : date.getDate(),
+  ).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
+}
+
+function formatAmountInput(value: string) {
+  const sanitizedValue = value.replace(/,/g, '').replace(/[^\d.]/g, '');
+  const [integerPart = '', ...decimalParts] = sanitizedValue.split('.');
+  const hasDecimalPoint = sanitizedValue.includes('.');
+  const normalizedInteger = integerPart.replace(/^0+(?=\d)/, '') || (hasDecimalPoint ? '0' : '');
+  const groupedInteger = normalizedInteger.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  if (!hasDecimalPoint) return groupedInteger;
+
+  return `${groupedInteger}.${decimalParts.join('')}`;
 }
 
 export function TransactionEditor({ transactionId }: TransactionEditorProps) {
@@ -106,6 +122,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState('');
+  const hasLoadedEditorRef = useRef(false);
 
   const filteredCategories = useMemo(
     () => categories.filter((category) => category.type === type),
@@ -129,7 +146,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
             await getTransactionEditorData(transactionId);
 
           setCategories(loadedCategories);
-          setAmount(String(transaction.amount));
+          setAmount(formatAmountInput(String(transaction.amount)));
           setType(transaction.type);
           setCategoryId(transaction.category_id ?? '');
           setDescription(transaction.description ?? '');
@@ -140,6 +157,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
       } catch (error) {
         setMessage(getErrorMessage(error));
       } finally {
+        hasLoadedEditorRef.current = true;
         setIsLoading(false);
       }
     }
@@ -147,10 +165,30 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
     loadEditorData();
   }, [transactionId]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLoadedEditorRef.current) return;
+
+      let isActive = true;
+
+      listCategories()
+        .then((loadedCategories) => {
+          if (isActive) setCategories(loadedCategories);
+        })
+        .catch((error) => {
+          if (isActive) setMessage(getErrorMessage(error));
+        });
+
+      return () => {
+        isActive = false;
+      };
+    }, []),
+  );
+
   async function handleSubmit() {
     setMessage('');
 
-    const parsedAmount = Number(amount.replace(',', '.'));
+    const parsedAmount = Number(amount.replace(/,/g, ''));
     const trimmedDate = transactionDate.trim();
 
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
@@ -254,7 +292,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                         accessibilityLabel="Monto"
                         inputMode="decimal"
                         keyboardType="decimal-pad"
-                        onChangeText={setAmount}
+                        onChangeText={(value) => setAmount(formatAmountInput(value))}
                         placeholder="0.00"
                         placeholderTextColor={palette.muted}
                         selectionColor={palette.olive}
@@ -335,31 +373,26 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                     <View style={styles.categoryList}>
                       {filteredCategories.length === 0 ? (
                         <Pressable
+                          accessibilityHint="Abre la pantalla para crear una categoría"
                           accessibilityRole="button"
-                          accessibilityState={{ selected: !categoryId }}
-                          onPress={() => setCategoryId('')}
+                          onPress={() => router.push('/category/new')}
                           style={({ pressed }) => [
                             styles.categoryButton,
-                            !categoryId && styles.categoryButtonActive,
+                            styles.categoryButtonActive,
                             pressed && styles.buttonPressed,
                           ]}>
                           <EditorText
                             numberOfLines={1}
-                            style={[
-                              styles.categoryButtonText,
-                              !categoryId && styles.selectedText,
-                            ]}>
-                            Sin categoría
+                            style={[styles.categoryButtonText, styles.selectedText]}>
+                            Añadir
                           </EditorText>
-                          {!categoryId ? (
-                            <Image
-                              accessible={false}
-                              contentFit="contain"
-                              pointerEvents="none"
-                              source={decorations.branch}
-                              style={styles.categoryDecoration}
-                            />
-                          ) : null}
+                          <Image
+                            accessible={false}
+                            contentFit="contain"
+                            pointerEvents="none"
+                            source={decorations.branch}
+                            style={styles.categoryDecoration}
+                          />
                         </Pressable>
                       ) : null}
 

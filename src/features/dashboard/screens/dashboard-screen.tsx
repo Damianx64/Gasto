@@ -541,11 +541,14 @@ export default function DashboardScreen() {
                   <View style={styles.sectionHeader}>
                     <DashboardText style={styles.sectionTitle}>Gastos por categoría</DashboardText>
                     <Pressable
-                      accessibilityHint="Esta opción estará disponible próximamente"
+                      accessibilityHint="Abre la pantalla de reportes"
                       accessibilityRole="button"
-                      accessibilityState={{ disabled: true }}
-                      disabled
-                      style={styles.sectionAction}>
+                      hitSlop={8}
+                      onPress={() => router.push('/reports')}
+                      style={({ pressed }) => [
+                        styles.sectionAction,
+                        pressed && styles.buttonPressed,
+                      ]}>
                       <DashboardText type="small" style={styles.sectionActionText}>
                         Ver todas
                       </DashboardText>
