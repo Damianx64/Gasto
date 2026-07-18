@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -75,6 +76,10 @@ export default function RegisterScreen() {
       if (requiresEmailConfirmation) {
         setIsSuccessMessage(true);
         setMessage('Cuenta creada. Revisa tu correo para confirmar el registro.');
+        Alert.alert(
+          'Cuenta creada',
+          'Revisa tu correo para confirmar el registro.',
+        );
       } else {
         router.replace('/');
       }

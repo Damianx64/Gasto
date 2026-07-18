@@ -36,6 +36,29 @@ const colors = {
 
 const homeAvatar = require('../../../../assets/images/pfp_casa.webp');
 
+function getLoginErrorMessage(error: unknown) {
+  if (error && typeof error === 'object') {
+    const authError = error as { code?: unknown; message?: unknown };
+    const errorMessage = typeof authError.message === 'string' ? authError.message : '';
+
+    if (
+      authError.code === 'invalid_credentials' ||
+      errorMessage.toLowerCase().includes('invalid login credentials')
+    ) {
+      return 'La contraseña es incorrecta.';
+    }
+
+    if (
+      authError.code === 'email_not_confirmed' ||
+      errorMessage.toLowerCase().includes('email not confirmed')
+    ) {
+      return 'Confirma tu correo antes de iniciar sesión.';
+    }
+  }
+
+  return getErrorMessage(error);
+}
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,7 +80,7 @@ export default function LoginScreen() {
       await signIn({ email: email.trim(), password });
       router.replace('/');
     } catch (error) {
-      setMessage(getErrorMessage(error));
+      setMessage(getLoginErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
