@@ -22,6 +22,11 @@ export const CATEGORY_ICONS = [
   {
     key: 'transport',
     label: 'Transporte',
+    symbol: { android: 'directions_bus', ios: 'bus.fill', web: 'directions_bus' },
+  },
+  {
+    key: 'vehicle',
+    label: 'Vehículo',
     symbol: { android: 'directions_car', ios: 'car.fill', web: 'directions_car' },
   },
   {
@@ -45,14 +50,29 @@ export const CATEGORY_ICONS = [
     symbol: { android: 'shopping_bag', ios: 'bag.fill', web: 'shopping_bag' },
   },
   {
+    key: 'clothing',
+    label: 'Ropa',
+    symbol: { android: 'checkroom', ios: 'tshirt.fill', web: 'checkroom' },
+  },
+  {
     key: 'education',
     label: 'Educación',
     symbol: { android: 'school', ios: 'graduationcap.fill', web: 'school' },
   },
   {
+    key: 'technology',
+    label: 'Tecnología',
+    symbol: { android: 'devices', ios: 'laptopcomputer', web: 'devices' },
+  },
+  {
     key: 'entertainment',
     label: 'Ocio',
     symbol: { android: 'movie', ios: 'film.fill', web: 'movie' },
+  },
+  {
+    key: 'hobbies',
+    label: 'Hobbies',
+    symbol: { android: 'brush', ios: 'paintbrush.fill', web: 'brush' },
   },
   {
     key: 'work',

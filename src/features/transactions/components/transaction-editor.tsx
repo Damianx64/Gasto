@@ -23,6 +23,7 @@ import { ThemedText, type ThemedTextProps } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts, Spacing } from '@/constants/theme';
 import { listCategories } from '@/features/categories/categories.api';
+import { CategoryIcon } from '@/features/categories/components/category-icon';
 import type { Category } from '@/features/categories/types';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -46,6 +47,7 @@ const palette = {
   olive: '#7D8866',
   oliveDark: '#4E5C39',
   oliveLight: '#C9D5AC',
+  olivePale: '#E5E7DB',
   surface: '#FEFCF7',
   white: '#FFFDF8',
 } as const;
@@ -378,21 +380,19 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                           onPress={() => router.push('/category/new')}
                           style={({ pressed }) => [
                             styles.categoryButton,
-                            styles.categoryButtonActive,
+                            styles.addCategoryButton,
                             pressed && styles.buttonPressed,
                           ]}>
-                          <EditorText
-                            numberOfLines={1}
-                            style={[styles.categoryButtonText, styles.selectedText]}>
+                          <View style={styles.addCategoryIcon}>
+                            <SymbolView
+                              name={{ android: 'add', ios: 'plus', web: 'add' }}
+                              size={24}
+                              tintColor={palette.white}
+                            />
+                          </View>
+                          <EditorText numberOfLines={2} style={styles.categoryButtonText}>
                             Añadir
                           </EditorText>
-                          <Image
-                            accessible={false}
-                            contentFit="contain"
-                            pointerEvents="none"
-                            source={decorations.branch}
-                            style={styles.categoryDecoration}
-                          />
                         </Pressable>
                       ) : null}
 
@@ -401,31 +401,40 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
 
                         return (
                           <Pressable
+                            accessibilityLabel={`Categoría ${category.name}`}
                             accessibilityRole="button"
                             accessibilityState={{ selected: isSelected }}
                             key={category.id}
                             onPress={() => setCategoryId(category.id)}
                             style={({ pressed }) => [
                               styles.categoryButton,
-                              isSelected && styles.categoryButtonActive,
+                              isSelected && [
+                                styles.categoryButtonActive,
+                                { borderColor: category.color || palette.oliveDark },
+                              ],
                               pressed && styles.buttonPressed,
                             ]}>
-                            <EditorText
-                              numberOfLines={1}
-                              style={[
-                                styles.categoryButtonText,
-                                isSelected && styles.selectedText,
-                              ]}>
+                            <CategoryIcon
+                              color={category.color}
+                              iconKey={category.icon_key}
+                              size={42}
+                              symbolSize={23}
+                            />
+                            <EditorText numberOfLines={2} style={styles.categoryButtonText}>
                               {category.name}
                             </EditorText>
                             {isSelected ? (
-                              <Image
-                                accessible={false}
-                                contentFit="contain"
-                                pointerEvents="none"
-                                source={decorations.branch}
-                                style={styles.categoryDecoration}
-                              />
+                              <View
+                                style={[
+                                  styles.categorySelectedBadge,
+                                  { backgroundColor: category.color || palette.oliveDark },
+                                ]}>
+                                <SymbolView
+                                  name={{ android: 'check', ios: 'checkmark', web: 'check' }}
+                                  size={12}
+                                  tintColor={palette.white}
+                                />
+                              </View>
                             ) : null}
                           </Pressable>
                         );
@@ -734,7 +743,8 @@ const styles = StyleSheet.create({
   categoryList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    justifyContent: 'space-between',
+    rowGap: 10,
   },
   categoryButton: {
     alignItems: 'center',
@@ -743,39 +753,53 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     elevation: 1,
+    gap: 5,
     justifyContent: 'center',
-    minHeight: 52,
+    minHeight: 88,
     overflow: 'hidden',
-    paddingHorizontal: 19,
-    paddingVertical: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 9,
     position: 'relative',
     shadowColor: '#6D6659',
     shadowOffset: { height: 2, width: 0 },
     shadowOpacity: 0.06,
     shadowRadius: 5,
+    width: '23%',
   },
   categoryButtonActive: {
-    backgroundColor: palette.olive,
-    borderColor: palette.oliveDark,
+    backgroundColor: palette.olivePale,
     borderWidth: 2,
-    paddingHorizontal: 18,
-    paddingVertical: 9,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
   },
   categoryButtonText: {
-    fontSize: 18,
+    fontSize: 12,
     fontWeight: '500',
-    lineHeight: 24,
-    maxWidth: 190,
+    lineHeight: 16,
+    maxWidth: '100%',
+    textAlign: 'center',
     zIndex: 1,
   },
-  categoryDecoration: {
-    bottom: -28,
-    height: 80,
-    opacity: 0.82,
+  addCategoryButton: {
+    borderColor: palette.olive,
+  },
+  addCategoryIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.olive,
+    borderRadius: 21,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  categorySelectedBadge: {
+    alignItems: 'center',
+    borderRadius: 9,
+    height: 18,
+    justifyContent: 'center',
     position: 'absolute',
-    right: -2,
-    transform: [{ rotate: '30deg' }],
-    width: 29,
+    right: 5,
+    top: 5,
+    width: 18,
   },
   dateInputRow: {
     alignItems: 'stretch',
