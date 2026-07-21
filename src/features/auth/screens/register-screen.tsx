@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import {
@@ -6,6 +6,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -39,13 +40,36 @@ const colors = {
 const homeAvatar = require('../../../../assets/images/pfp_casa.webp');
 
 export default function RegisterScreen() {
+  const scrollViewRef = useRef<ScrollView>(null);
   const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [message, setMessage] = useState('');
   const [isSuccessMessage, setIsSuccessMessage] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isPasswordConfirmationVisible, setIsPasswordConfirmationVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardWillShow', (event) => {
+      Keyboard.scheduleLayoutAnimation(event);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardWillHide', (event) => {
+      Keyboard.scheduleLayoutAnimation(event);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  function keepPasswordFieldVisible() {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 250);
+  }
 
   async function handleRegister() {
     setMessage('');
@@ -54,13 +78,18 @@ export default function RegisterScreen() {
     const trimmedEmail = email.trim();
     const trimmedUserName = userName.trim();
 
-    if (!trimmedEmail || !password) {
-      setMessage('Escribe tu correo y contraseña.');
+    if (!trimmedEmail || !password || !passwordConfirmation) {
+      setMessage('Escribe tu correo, contraseña y confirmación de contraseña.');
       return;
     }
 
     if (password.length < 6) {
       setMessage('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    if (password !== passwordConfirmation) {
+      setMessage('Las contraseñas no coinciden.');
       return;
     }
 
@@ -106,12 +135,13 @@ export default function RegisterScreen() {
 
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}>
           <ScrollView
             automaticallyAdjustKeyboardInsets
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            ref={scrollViewRef}
             showsVerticalScrollIndicator={false}>
             <View style={styles.content}>
               <View style={styles.hero}>
@@ -191,10 +221,10 @@ export default function RegisterScreen() {
                       autoCapitalize="none"
                       autoComplete="new-password"
                       onChangeText={setPassword}
-                      onSubmitEditing={handleRegister}
+                      onFocus={keepPasswordFieldVisible}
                       placeholder="Mínimo 6 caracteres"
                       placeholderTextColor={colors.muted}
-                      returnKeyType="done"
+                      returnKeyType="next"
                       secureTextEntry={!isPasswordVisible}
                       style={styles.input}
                       textContentType="newPassword"
@@ -215,6 +245,56 @@ export default function RegisterScreen() {
                         }
                         name={
                           isPasswordVisible
+                            ? { ios: 'eye.slash', android: 'visibility_off', web: 'visibility_off' }
+                            : { ios: 'eye', android: 'visibility', web: 'visibility' }
+                        }
+                        size={22}
+                        tintColor={colors.oliveDark}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+
+                <View style={styles.fieldGroup}>
+                  <ThemedText style={styles.label}>Confirmar contraseña</ThemedText>
+                  <View style={styles.inputShell}>
+                    <SymbolView
+                      fallback={<ThemedText style={styles.fallbackIcon}>•</ThemedText>}
+                      name={{ ios: 'lock', android: 'lock', web: 'lock' }}
+                      size={22}
+                      tintColor={colors.oliveDark}
+                    />
+                    <TextInput
+                      autoCapitalize="none"
+                      autoComplete="new-password"
+                      onChangeText={setPasswordConfirmation}
+                      onFocus={keepPasswordFieldVisible}
+                      onSubmitEditing={handleRegister}
+                      placeholder="Repite tu contraseña"
+                      placeholderTextColor={colors.muted}
+                      returnKeyType="done"
+                      secureTextEntry={!isPasswordConfirmationVisible}
+                      style={styles.input}
+                      textContentType="newPassword"
+                      value={passwordConfirmation}
+                    />
+                    <Pressable
+                      accessibilityLabel={
+                        isPasswordConfirmationVisible
+                          ? 'Ocultar confirmación de contraseña'
+                          : 'Mostrar confirmación de contraseña'
+                      }
+                      hitSlop={10}
+                      onPress={() => setIsPasswordConfirmationVisible((visible) => !visible)}
+                      style={({ pressed }) => pressed && styles.iconPressed}>
+                      <SymbolView
+                        fallback={
+                          <ThemedText style={styles.fallbackIcon}>
+                            {isPasswordConfirmationVisible ? '×' : '○'}
+                          </ThemedText>
+                        }
+                        name={
+                          isPasswordConfirmationVisible
                             ? { ios: 'eye.slash', android: 'visibility_off', web: 'visibility_off' }
                             : { ios: 'eye', android: 'visibility', web: 'visibility' }
                         }

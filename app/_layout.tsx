@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gate: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 200,
   },
 });
