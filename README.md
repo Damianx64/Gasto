@@ -12,6 +12,8 @@ sincronizan con Supabase cuando la red vuelve a estar disponible.
 - Balance general agregado y alcance global por billetera en Dashboard, Movimientos y Reportes.
 - Dashboard con carrusel de billeteras, actividad reciente y resumen mensual.
 - Reportes y gráficas de distribución de gastos filtrados por el alcance activo.
+- Pantalla de Ajustes con accesos dedicados para administrar billeteras y categorías.
+- Creación, edición y eliminación de billeteras y categorías desde sus propias pantallas.
 - Persistencia local con SQLite para trabajar sin conexión.
 - Sincronización automática y resolución determinista de conflictos.
 - Soporte para Android, iOS y web mediante Expo Router.
@@ -109,6 +111,7 @@ src/
     dashboard/         Resumen financiero
     offline/           Base local y sincronización
     reports/           Cálculos y visualizaciones
+    settings/          Pantalla de ajustes y accesos de administración
     transactions/      Gestión de movimientos
     wallets/           Gestión y alcance global de billeteras
   hooks/              Hooks compartidos
