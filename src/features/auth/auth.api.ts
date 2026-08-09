@@ -126,23 +126,6 @@ export async function signOut() {
   await clearOfflineAccount();
 }
 
-export async function resetLocalAuth() {
-  await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    const authKeys = keys.filter(
-      (key) => key === OFFLINE_ACCOUNT_KEY || /^sb-.+-auth-token$/.test(key),
-    );
-    if (authKeys.length > 0) await AsyncStorage.multiRemove(authKeys);
-  } catch {
-    await AsyncStorage.removeItem(OFFLINE_ACCOUNT_KEY).catch(() => undefined);
-  }
-
-  lastOfflineAccountSerialized = null;
-  for (const listener of offlineAccountListeners) listener(null);
-}
-
 export async function getCurrentSession() {
   const { data, error } = await supabase.auth.getSession();
 

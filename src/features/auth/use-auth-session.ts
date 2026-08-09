@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import * as Network from 'expo-network';
 
-import { runOneTimeDataReset } from '@/features/offline/reset';
-
 import {
   getCurrentSession,
   getOfflineAccount,
@@ -23,11 +21,6 @@ export function useAuthSession() {
     let unsubscribeOfflineAccount: () => void = () => undefined;
 
     async function loadAuthState() {
-      await runOneTimeDataReset();
-      if (!isMounted) return;
-
-      // Se suscribe solamente después del reset para que INITIAL_SESSION no pueda
-      // restaurar una sesión antigua mientras todavía se limpian los datos locales.
       unsubscribeAuthState = subscribeToAuthState((nextSession) => {
         setSession(nextSession);
         setIsSessionReady(true);

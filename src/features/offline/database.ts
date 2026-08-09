@@ -162,16 +162,6 @@ export async function clearLocalUserData(userId: string) {
   await clearLegacyOfflineCaches(userId);
 }
 
-export async function clearAllLocalData() {
-  await withLocalTransaction(async (database) => {
-    await database.runAsync('DELETE FROM sync_outbox');
-    await database.runAsync('DELETE FROM local_transactions');
-    await database.runAsync('DELETE FROM local_categories');
-    await database.runAsync('DELETE FROM local_wallets');
-    await database.runAsync('DELETE FROM sync_meta');
-  });
-}
-
 export async function clearLegacyOfflineCaches(userId: string) {
   try {
     await AsyncStorage.multiRemove([
