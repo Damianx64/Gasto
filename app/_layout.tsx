@@ -13,6 +13,7 @@ import { StyleSheet, useColorScheme, View } from 'react-native';
 import { useAuthSession } from '@/features/auth/use-auth-session';
 import { FirstSyncScreen } from '@/features/offline/components/first-sync-screen';
 import { SyncProvider, useSync } from '@/features/offline/sync-context';
+import { WalletScopeProvider } from '@/features/wallets/wallet-scope-context';
 
 type RootNavigatorProps = {
   isAuthenticated: boolean;
@@ -49,6 +50,7 @@ function RootNavigator({ isAuthenticated, isSessionReady }: RootNavigatorProps) 
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="transaction" />
         <Stack.Screen name="category" />
+        <Stack.Screen name="wallet" />
       </Stack>
       {canUseAuthenticatedRoutes && !isBootstrapped ? (
         <View style={styles.gate}>
@@ -68,7 +70,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <SyncProvider remoteSessionToken={session?.access_token ?? null} userId={userId}>
-        <RootNavigator isAuthenticated={isAuthenticated} isSessionReady={isSessionReady} />
+        <WalletScopeProvider userId={userId}>
+          <RootNavigator isAuthenticated={isAuthenticated} isSessionReady={isSessionReady} />
+        </WalletScopeProvider>
       </SyncProvider>
     </ThemeProvider>
   );

@@ -8,9 +8,10 @@ sincronizan con Supabase cuando la red vuelve a estar disponible.
 ## Características
 
 - Registro e inicio de sesión con Supabase Auth.
-- Gestión de ingresos, gastos y categorías personalizadas.
-- Dashboard con balance, actividad reciente y resumen mensual.
-- Reportes y gráficas de distribución de gastos.
+- Gestión de ingresos, gastos, billeteras y categorías personalizadas.
+- Balance general agregado y alcance global por billetera en Dashboard, Movimientos y Reportes.
+- Dashboard con carrusel de billeteras, actividad reciente y resumen mensual.
+- Reportes y gráficas de distribución de gastos filtrados por el alcance activo.
 - Persistencia local con SQLite para trabajar sin conexión.
 - Sincronización automática y resolución determinista de conflictos.
 - Soporte para Android, iOS y web mediante Expo Router.
@@ -73,15 +74,22 @@ npx eas-cli@latest init --id TU_PROJECT_ID --force
 # Build interno para pruebas
 npx eas-cli@latest build --platform android --profile preview
 
+# Generas un nuevo APK
+eas build -p android --profile preview
+
 # Build de producción para Android e iOS
 npx eas-cli@latest build --platform all --profile production
 ```
 
 ## Funcionamiento offline
 
-En Android e iOS, las categorías y los movimientos se escriben primero en SQLite. Los cambios
-pendientes se sincronizan al recuperar conexión, abrir la aplicación o volver del segundo plano.
-El primer inicio de sesión y la descarga inicial requieren internet.
+En Android e iOS, las billeteras, las categorías y los movimientos se escriben primero en
+SQLite. Los cambios pendientes se sincronizan al recuperar conexión, abrir la aplicación o
+volver del segundo plano. El primer inicio de sesión y la descarga inicial requieren internet.
+
+El Balance general no es una fila de la base de datos: es la vista agregada de todos los
+movimientos. Una transacción con `wallet_id = NULL` queda sin billetera y solo aparece dentro
+de ese agregado. La billetera activa se conserva localmente por usuario.
 
 Supabase conserva las eliminaciones como *tombstones* y el RPC autenticado
 `sync_finance_data` resuelve conflictos con una estrategia de último cambio ganador. Cada
@@ -102,9 +110,10 @@ src/
     offline/           Base local y sincronización
     reports/           Cálculos y visualizaciones
     transactions/      Gestión de movimientos
+    wallets/           Gestión y alcance global de billeteras
   hooks/              Hooks compartidos
   lib/                Clientes e integraciones
-supabase/migrations/  Inicialización de la base de datos
+supabase/migrations/  Inicializador canónico
 ```
 
 Los archivos de `app/` se mantienen como rutas ligeras. La lógica de cada flujo vive en su módulo

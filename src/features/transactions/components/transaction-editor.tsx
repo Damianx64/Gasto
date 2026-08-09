@@ -25,6 +25,9 @@ import { Fonts, Spacing } from '@/constants/theme';
 import { listCategories } from '@/features/categories/categories.api';
 import { CategoryIcon } from '@/features/categories/components/category-icon';
 import type { Category } from '@/features/categories/types';
+import type { Wallet } from '@/features/wallets/types';
+import { useWalletScope } from '@/features/wallets/wallet-scope-context';
+import { listWallets } from '@/features/wallets/wallets.api';
 import { getErrorMessage } from '@/lib/errors';
 
 import { getToday } from '../formatters';
@@ -111,20 +114,24 @@ function formatAmountInput(value: string) {
 
 export function TransactionEditor({ transactionId }: TransactionEditorProps) {
   const isEditing = Boolean(transactionId);
+  const { selectedWalletId } = useWalletScope();
   const colorScheme = useColorScheme();
   const isDarkMode = colorScheme === 'dark';
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<TransactionType>('expense');
   const [categoryId, setCategoryId] = useState('');
+  const [walletId, setWalletId] = useState('');
   const [description, setDescription] = useState('');
   const [transactionDate, setTransactionDate] = useState(getToday());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [wallets, setWallets] = useState<Wallet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState('');
   const hasLoadedEditorRef = useRef(false);
+  const initialSelectedWalletIdRef = useRef(selectedWalletId);
 
   const filteredCategories = useMemo(
     () => categories.filter((category) => category.type === type),
@@ -138,23 +145,42 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
   }, [categoryId, filteredCategories, isEditing]);
 
   useEffect(() => {
+    if (walletId && !wallets.some((wallet) => wallet.id === walletId)) {
+      setWalletId('');
+    }
+  }, [walletId, wallets]);
+
+  useEffect(() => {
     async function loadEditorData() {
       setMessage('');
       setIsLoading(true);
 
       try {
         if (transactionId) {
-          const { categories: loadedCategories, transaction } =
+          const { categories: loadedCategories, transaction, wallets: loadedWallets } =
             await getTransactionEditorData(transactionId);
 
           setCategories(loadedCategories);
+          setWallets(loadedWallets);
           setAmount(formatAmountInput(String(transaction.amount)));
           setType(transaction.type);
           setCategoryId(transaction.category_id ?? '');
           setDescription(transaction.description ?? '');
           setTransactionDate(transaction.transaction_date);
+          setWalletId(transaction.wallet_id ?? '');
         } else {
-          setCategories(await listCategories());
+          const [loadedCategories, loadedWallets] = await Promise.all([
+            listCategories(),
+            listWallets(),
+          ]);
+          setCategories(loadedCategories);
+          setWallets(loadedWallets);
+          const initialWalletId = initialSelectedWalletIdRef.current;
+          setWalletId(
+            initialWalletId && loadedWallets.some((wallet) => wallet.id === initialWalletId)
+              ? initialWalletId
+              : '',
+          );
         }
       } catch (error) {
         setMessage(getErrorMessage(error));
@@ -173,9 +199,12 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
 
       let isActive = true;
 
-      listCategories()
-        .then((loadedCategories) => {
-          if (isActive) setCategories(loadedCategories);
+      Promise.all([listCategories(), listWallets()])
+        .then(([loadedCategories, loadedWallets]) => {
+          if (isActive) {
+            setCategories(loadedCategories);
+            setWallets(loadedWallets);
+          }
         })
         .catch((error) => {
           if (isActive) setMessage(getErrorMessage(error));
@@ -212,6 +241,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
         description: description.trim(),
         transactionDate: trimmedDate,
         type,
+        walletId: walletId || null,
       };
 
       if (transactionId) {
@@ -310,6 +340,70 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                       />
                     </View>
                   </View>
+
+                  {wallets.length > 0 ? (
+                    <View style={styles.field}>
+                      <EditorText style={styles.fieldLabel}>Billetera</EditorText>
+                      <View style={styles.walletList}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: walletId === '' }}
+                          onPress={() => setWalletId('')}
+                          style={({ pressed }) => [
+                            styles.walletButton,
+                            walletId === '' && styles.walletButtonActive,
+                            pressed && styles.buttonPressed,
+                          ]}>
+                          <View style={[styles.walletIcon, walletId === '' && styles.walletIconActive]}>
+                            <SymbolView
+                              name={{ android: 'wallet', ios: 'wallet.pass', web: 'wallet' }}
+                              size={23}
+                              tintColor={walletId === '' ? palette.white : palette.oliveDark}
+                            />
+                          </View>
+                          <EditorText
+                            numberOfLines={2}
+                            style={[styles.walletButtonText, walletId === '' && styles.selectedText]}>
+                            Sin billetera
+                          </EditorText>
+                        </Pressable>
+
+                        {wallets.map((wallet) => {
+                          const isSelected = wallet.id === walletId;
+                          return (
+                            <Pressable
+                              accessibilityLabel={`Billetera ${wallet.name}`}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: isSelected }}
+                              key={wallet.id}
+                              onPress={() => setWalletId(wallet.id)}
+                              style={({ pressed }) => [
+                                styles.walletButton,
+                                isSelected && styles.walletButtonActive,
+                                pressed && styles.buttonPressed,
+                              ]}>
+                              <View style={[styles.walletIcon, isSelected && styles.walletIconActive]}>
+                                <SymbolView
+                                  name={
+                                    wallet.type === 'cash'
+                                      ? { android: 'payments', ios: 'banknote', web: 'payments' }
+                                      : { android: 'credit_card', ios: 'creditcard', web: 'credit_card' }
+                                  }
+                                  size={23}
+                                  tintColor={isSelected ? palette.white : palette.oliveDark}
+                                />
+                              </View>
+                              <EditorText
+                                numberOfLines={2}
+                                style={[styles.walletButtonText, isSelected && styles.selectedText]}>
+                                {wallet.name}
+                              </EditorText>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ) : null}
 
                   <View style={styles.field}>
                     <EditorText style={styles.fieldLabel}>Tipo</EditorText>
@@ -745,6 +839,44 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     rowGap: 10,
+  },
+  walletList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  walletButton: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 9,
+    minHeight: 62,
+    paddingHorizontal: 12,
+    width: '48%',
+  },
+  walletButtonActive: {
+    backgroundColor: palette.olive,
+    borderColor: palette.oliveDark,
+  },
+  walletIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.olivePale,
+    borderRadius: 18,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  walletIconActive: {
+    backgroundColor: palette.oliveDark,
+  },
+  walletButtonText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 19,
   },
   categoryButton: {
     alignItems: 'center',

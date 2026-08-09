@@ -20,12 +20,14 @@ import { MonthlyExpensesChart } from '@/features/reports/components/monthly-expe
 import { buildReportsSummary } from '@/features/reports/report-data';
 import { reportDecorations, reportPalette } from '@/features/reports/report-theme';
 import { useSync } from '@/features/offline/sync-context';
+import { useWalletScope } from '@/features/wallets/wallet-scope-context';
 import { listTransactions } from '@/features/transactions/transactions.api';
 import type { TransactionListItem } from '@/features/transactions/types';
 import { getErrorMessage } from '@/lib/errors';
 
 export default function ReportsScreen() {
   const { revision, syncNow } = useSync();
+  const { selectedWallet, selectedWalletId } = useWalletScope();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -40,7 +42,7 @@ export default function ReportsScreen() {
 
     try {
       if (mode === 'refresh') await syncNow();
-      setTransactions(await listTransactions());
+      setTransactions(await listTransactions(selectedWalletId));
       hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -48,7 +50,7 @@ export default function ReportsScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [syncNow]);
+  }, [selectedWalletId, syncNow]);
 
   useFocusEffect(
     useCallback(() => {
@@ -84,7 +86,7 @@ export default function ReportsScreen() {
                 />
               </View>
               <ThemedText style={styles.subtitle}>
-                Gráficas de gastos mensuales.
+                Gráficas de gastos mensuales · {selectedWallet?.name ?? 'Balance general'}
               </ThemedText>
             </View>
 

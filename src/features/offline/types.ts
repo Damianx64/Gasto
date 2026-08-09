@@ -4,8 +4,9 @@ import type {
   TransactionListItem,
   TransactionType,
 } from '@/features/transactions/types';
+import type { Wallet, WalletType } from '@/features/wallets/types';
 
-export type SyncEntity = 'category' | 'transaction';
+export type SyncEntity = 'category' | 'transaction' | 'wallet';
 
 export type LocalCategory = Category & {
   client_updated_at: string;
@@ -24,13 +25,24 @@ export type LocalTransaction = TransactionDetails & {
   user_id: string;
 };
 
+export type LocalWallet = Wallet & {
+  client_updated_at: string;
+  created_at: string;
+  deleted_at: string | null;
+  last_change_id: string;
+  user_id: string;
+};
+
 export type CategorySyncRecord = Omit<LocalCategory, 'user_id'>;
 
 export type TransactionSyncRecord = Omit<LocalTransaction, 'user_id'>;
 
+export type WalletSyncRecord = Omit<LocalWallet, 'user_id'>;
+
 export type SyncChange =
   | { entity: 'category'; record: CategorySyncRecord }
-  | { entity: 'transaction'; record: TransactionSyncRecord };
+  | { entity: 'transaction'; record: TransactionSyncRecord }
+  | { entity: 'wallet'; record: WalletSyncRecord };
 
 export type SubmittedSyncChange = SyncChange & {
   changeId: string;
@@ -41,6 +53,7 @@ export type SyncSnapshot = {
   categories: CategorySyncRecord[];
   server_time: string;
   transactions: TransactionSyncRecord[];
+  wallets: WalletSyncRecord[];
 };
 
 export type SyncStatus = 'bootstrapping' | 'error' | 'offline' | 'synced' | 'syncing';
@@ -64,4 +77,8 @@ export type LocalTransactionListItem = TransactionListItem & {
 
 export function isTransactionType(value: unknown): value is TransactionType {
   return value === 'income' || value === 'expense';
+}
+
+export function isWalletType(value: unknown): value is WalletType {
+  return value === 'cash' || value === 'debit';
 }

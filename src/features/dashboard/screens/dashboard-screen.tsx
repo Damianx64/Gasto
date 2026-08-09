@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { router, type Href, useFocusEffect } from 'expo-router';
@@ -27,6 +27,7 @@ import {
 } from '@/features/transactions/formatters';
 import { listTransactions } from '@/features/transactions/transactions.api';
 import type { TransactionListItem } from '@/features/transactions/types';
+import { useWalletScope } from '@/features/wallets/wallet-scope-context';
 import { getErrorMessage } from '@/lib/errors';
 
 const palette = {
@@ -70,6 +71,12 @@ type MonthSummary = {
 type Trend = {
   direction: 'down' | 'flat' | 'up';
   percentage: number;
+};
+
+type BalanceCardData = {
+  balance: number;
+  name: string;
+  walletId: string | null;
 };
 
 function DashboardText({ style, themeColor, ...props }: ThemedTextProps) {
@@ -173,13 +180,16 @@ function TrendLabel({ inverted, trend }: { inverted?: boolean; trend: Trend | nu
 export default function DashboardScreen() {
   const { offlineAccount, session } = useAuthSession();
   const { connectivity, pendingCount, revision, status, syncNow } = useSync();
+  const { selectedWalletId, setSelectedWalletId, wallets } = useWalletScope();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSyncDetailsVisible, setIsSyncDetailsVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [balanceCardWidth, setBalanceCardWidth] = useState(0);
   const hasLoadedRef = useRef(false);
+  const balanceCarouselRef = useRef<ScrollView>(null);
 
   const userName = getUserName(
     session?.user.email ?? offlineAccount?.email ?? undefined,
@@ -234,16 +244,56 @@ export default function DashboardScreen() {
     }, [loadDashboard, revision]),
   );
 
+  const scopedTransactions = useMemo(
+    () =>
+      selectedWalletId
+        ? transactions.filter((transaction) => transaction.wallet_id === selectedWalletId)
+        : transactions,
+    [selectedWalletId, transactions],
+  );
+
+  const balanceCards = useMemo<BalanceCardData[]>(() => {
+    const getBalance = (items: TransactionListItem[]) =>
+      items.reduce((balance, transaction) => {
+        const amount = getTransactionAmount(transaction);
+        return balance + (transaction.type === 'income' ? amount : -amount);
+      }, 0);
+
+    return [
+      { balance: getBalance(transactions), name: 'Balance general', walletId: null },
+      ...wallets.map((wallet) => ({
+        balance: getBalance(
+          transactions.filter((transaction) => transaction.wallet_id === wallet.id),
+        ),
+        name: wallet.name,
+        walletId: wallet.id,
+      })),
+    ];
+  }, [transactions, wallets]);
+
+  useEffect(() => {
+    if (!balanceCardWidth) return;
+    const selectedIndex = Math.max(
+      0,
+      balanceCards.findIndex((card) => card.walletId === selectedWalletId),
+    );
+    balanceCarouselRef.current?.scrollTo({
+      animated: false,
+      x: selectedIndex * balanceCardWidth,
+      y: 0,
+    });
+  }, [balanceCardWidth, balanceCards, selectedWalletId]);
+
   const dashboard = useMemo(() => {
     const now = new Date();
     const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const currentSummary = summarizeMonth(transactions, getMonthKey(now));
-    const previousSummary = summarizeMonth(transactions, getMonthKey(previousMonth));
+    const currentSummary = summarizeMonth(scopedTransactions, getMonthKey(now));
+    const previousSummary = summarizeMonth(scopedTransactions, getMonthKey(previousMonth));
     const categoryMap = new Map<string, Omit<CategorySummary, 'percentage'>>();
 
     let balance = 0;
 
-    for (const transaction of transactions) {
+    for (const transaction of scopedTransactions) {
       const amount = getTransactionAmount(transaction);
       balance += transaction.type === 'income' ? amount : -amount;
 
@@ -281,9 +331,9 @@ export default function DashboardScreen() {
       currentSummary,
       expenseTrend: getTrend(currentSummary.expenses, previousSummary.expenses),
       incomeTrend: getTrend(currentSummary.income, previousSummary.income),
-      recentTransactions: transactions.slice(0, 6),
+      recentTransactions: scopedTransactions.slice(0, 6),
     };
-  }, [transactions]);
+  }, [scopedTransactions]);
 
   const cardColors = {
     backgroundColor: palette.surface,
@@ -403,65 +453,119 @@ export default function DashboardScreen() {
               </View>
             ) : (
               <>
-                <View style={styles.balanceCard}>
-                  <Image
-                    accessible={false}
-                    contentFit="contain"
-                    pointerEvents="none"
-                    source={decorations.balance}
-                    style={styles.balanceDecoration}
-                  />
-                  <View style={styles.balanceContent}>
-                    <View style={styles.balanceHeader}>
-                      <DashboardText style={styles.sectionEyebrow}>Balance total</DashboardText>
-                      <Pressable
-                        accessibilityLabel={
-                          isBalanceVisible ? 'Ocultar balance' : 'Mostrar balance'
-                        }
-                        accessibilityRole="button"
-                        hitSlop={10}
-                        onPress={() => setIsBalanceVisible((visible) => !visible)}
-                        style={({ pressed }) => pressed && styles.buttonPressed}>
-                        <SymbolView
-                          name={{
-                            android: isBalanceVisible ? 'visibility' : 'visibility_off',
-                            ios: isBalanceVisible ? 'eye' : 'eye.slash',
-                            web: isBalanceVisible ? 'visibility' : 'visibility_off',
-                          }}
-                          size={20}
-                          tintColor={palette.white}
-                        />
-                      </Pressable>
+                <View
+                  accessibilityLabel="Selector de billetera"
+                  onLayout={(event) => setBalanceCardWidth(event.nativeEvent.layout.width)}
+                  style={styles.balanceCarousel}>
+                  <ScrollView
+                    horizontal
+                    nestedScrollEnabled
+                    onMomentumScrollEnd={(event) => {
+                      if (!balanceCardWidth) return;
+                      const index = Math.max(
+                        0,
+                        Math.min(
+                          balanceCards.length - 1,
+                          Math.round(event.nativeEvent.contentOffset.x / balanceCardWidth),
+                        ),
+                      );
+                      setSelectedWalletId(balanceCards[index]?.walletId ?? null);
+                    }}
+                    pagingEnabled
+                    ref={balanceCarouselRef}
+                    scrollEnabled={balanceCards.length > 1}
+                    showsHorizontalScrollIndicator={false}>
+                    {balanceCards.map((card) => (
+                      <View
+                        key={card.walletId ?? 'general'}
+                        style={[
+                          styles.balancePage,
+                          balanceCardWidth
+                            ? { width: balanceCardWidth }
+                            : styles.balancePageFallback,
+                        ]}>
+                        <View style={styles.balanceCard}>
+                          <Image
+                            accessible={false}
+                            contentFit="contain"
+                            pointerEvents="none"
+                            source={decorations.balance}
+                            style={styles.balanceDecoration}
+                          />
+                          <View style={styles.balanceContent}>
+                            <View style={styles.balanceHeader}>
+                              <DashboardText numberOfLines={1} style={styles.sectionEyebrow}>
+                                {card.name}
+                              </DashboardText>
+                              <Pressable
+                                accessibilityLabel={
+                                  isBalanceVisible ? 'Ocultar balance' : 'Mostrar balance'
+                                }
+                                accessibilityRole="button"
+                                hitSlop={10}
+                                onPress={() => setIsBalanceVisible((visible) => !visible)}
+                                style={({ pressed }) => pressed && styles.buttonPressed}>
+                                <SymbolView
+                                  name={{
+                                    android: isBalanceVisible ? 'visibility' : 'visibility_off',
+                                    ios: isBalanceVisible ? 'eye' : 'eye.slash',
+                                    web: isBalanceVisible ? 'visibility' : 'visibility_off',
+                                  }}
+                                  size={20}
+                                  tintColor={palette.white}
+                                />
+                              </Pressable>
+                            </View>
+
+                            <DashboardText
+                              adjustsFontSizeToFit
+                              numberOfLines={1}
+                              style={styles.balanceAmount}>
+                              {isBalanceVisible ? formatCurrency(card.balance) : '••••••'}
+                            </DashboardText>
+
+                            <Pressable
+                              accessibilityRole="button"
+                              onPress={() => router.push('/transactions')}
+                              style={({ pressed }) => [
+                                styles.detailButton,
+                                pressed && styles.buttonPressed,
+                              ]}>
+                              <DashboardText type="smallBold" style={styles.detailButtonText}>
+                                Ver detalle
+                              </DashboardText>
+                              <SymbolView
+                                name={{
+                                  android: 'chevron_right',
+                                  ios: 'chevron.right',
+                                  web: 'chevron_right',
+                                }}
+                                size={17}
+                                tintColor={palette.white}
+                              />
+                            </Pressable>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  {balanceCards.length > 1 ? (
+                    <View accessibilityRole="tablist" style={styles.balanceDots}>
+                      {balanceCards.map((card) => {
+                        const isSelected = card.walletId === selectedWalletId;
+                        return (
+                          <Pressable
+                            accessibilityLabel={`Mostrar ${card.name}`}
+                            accessibilityRole="tab"
+                            accessibilityState={{ selected: isSelected }}
+                            key={card.walletId ?? 'general-dot'}
+                            onPress={() => setSelectedWalletId(card.walletId)}
+                            style={[styles.balanceDot, isSelected && styles.balanceDotActive]}
+                          />
+                        );
+                      })}
                     </View>
-
-                    <DashboardText
-                      style={styles.balanceAmount}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit>
-                      {isBalanceVisible ? formatCurrency(dashboard.balance) : '••••••'}
-                    </DashboardText>
-
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => router.push('/transactions')}
-                      style={({ pressed }) => [
-                        styles.detailButton,
-                        pressed && styles.buttonPressed,
-                      ]}>
-                      <DashboardText type="smallBold" style={styles.detailButtonText}>
-                        Ver detalle
-                      </DashboardText>
-                      <SymbolView
-                        name={{
-                          android: 'chevron_right',
-                          ios: 'chevron.right',
-                          web: 'chevron_right',
-                        }}
-                        size={17}
-                        tintColor={palette.white}
-                      />
-                    </Pressable>
-                  </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.summaryRow}>
@@ -894,6 +998,34 @@ const styles = StyleSheet.create({
     shadowOffset: { height: 5, width: 0 },
     shadowOpacity: 0.18,
     shadowRadius: 9,
+  },
+  balanceCarousel: {
+    gap: 8,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  balancePage: {
+    paddingHorizontal: 1,
+  },
+  balancePageFallback: {
+    width: '100%',
+  },
+  balanceDots: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 7,
+    justifyContent: 'center',
+    minHeight: 18,
+  },
+  balanceDot: {
+    backgroundColor: palette.border,
+    borderRadius: 5,
+    height: 8,
+    width: 8,
+  },
+  balanceDotActive: {
+    backgroundColor: palette.olive,
+    width: 20,
   },
   balanceDecoration: {
     bottom: -42,

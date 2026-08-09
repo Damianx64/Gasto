@@ -162,6 +162,35 @@ export default function SettingsScreen() {
               />
             </View>
 
+            <Pressable
+              accessibilityHint="Abre la administración de billeteras"
+              accessibilityRole="button"
+              onPress={() => router.push('/wallet' as Href)}
+              style={({ pressed }) => [styles.walletsCard, pressed && styles.buttonPressed]}>
+              <View style={styles.walletsIcon}>
+                <SymbolView
+                  name={{
+                    android: 'account_balance_wallet',
+                    ios: 'wallet.pass',
+                    web: 'account_balance_wallet',
+                  }}
+                  size={27}
+                  tintColor={palette.white}
+                />
+              </View>
+              <View style={styles.walletsCopy}>
+                <SettingsText style={styles.walletsTitle}>Billeteras</SettingsText>
+                <SettingsText type="small" themeColor="textSecondary">
+                  Añade, edita o elimina tus billeteras.
+                </SettingsText>
+              </View>
+              <SymbolView
+                name={{ android: 'chevron_right', ios: 'chevron.right', web: 'chevron_right' }}
+                size={22}
+                tintColor={palette.oliveDark}
+              />
+            </Pressable>
+
             <View style={styles.sectionHeader}>
               <SettingsText style={styles.sectionTitle}>Categorías</SettingsText>
               <View style={styles.addButtonWrap}>
@@ -369,6 +398,35 @@ const styles = StyleSheet.create({
     opacity: 0.84,
     transform: [{ rotate: '-9deg' }],
     width: 65,
+  },
+  walletsCard: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 19,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    minHeight: 88,
+    padding: 14,
+  },
+  walletsIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.olive,
+    borderRadius: 16,
+    height: 52,
+    justifyContent: 'center',
+    width: 52,
+  },
+  walletsCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  walletsTitle: {
+    fontSize: 21,
+    fontWeight: '500',
+    lineHeight: 27,
   },
   sectionHeader: {
     alignItems: 'center',

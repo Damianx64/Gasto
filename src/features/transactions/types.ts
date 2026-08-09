@@ -13,6 +13,7 @@ export type TransactionListItem = {
   id: string;
   transaction_date: string;
   type: TransactionType;
+  wallet_id: string | null;
 };
 
 export type TransactionDetails = {
@@ -21,6 +22,7 @@ export type TransactionDetails = {
   description: string | null;
   transaction_date: string;
   type: TransactionType;
+  wallet_id: string | null;
 };
 
 export type TransactionInput = {
@@ -29,4 +31,5 @@ export type TransactionInput = {
   description: string;
   transactionDate: string;
   type: TransactionType;
+  walletId: string | null;
 };

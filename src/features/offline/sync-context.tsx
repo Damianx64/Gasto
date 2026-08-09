@@ -56,7 +56,7 @@ function getConnectivity(network: ReachabilityState): SyncConnectivity {
   if (network.isConnected === false || network.isInternetReachable === false) {
     return 'offline';
   }
-  if (network.isConnected === true && network.isInternetReachable !== false) {
+  if (network.isConnected === true) {
     return 'online';
   }
   return 'unknown';
@@ -207,8 +207,9 @@ export function SyncProvider({
       const network = await Network.getNetworkStateAsync().catch(() => null);
       if (!network) return false;
 
-      updateConnectivity(getConnectivity(network));
-      if (connectivityRef.current !== 'online') return false;
+      const nextConnectivity = getConnectivity(network);
+      updateConnectivity(nextConnectivity);
+      if (nextConnectivity !== 'online') return false;
     }
 
     return requestSync();

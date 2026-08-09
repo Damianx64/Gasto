@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import * as Network from 'expo-network';
 
+import { runOneTimeDataReset } from '@/features/offline/reset';
+
 import {
   getCurrentSession,
   getOfflineAccount,
@@ -17,8 +19,24 @@ export function useAuthSession() {
 
   useEffect(() => {
     let isMounted = true;
+    let unsubscribeAuthState: () => void = () => undefined;
+    let unsubscribeOfflineAccount: () => void = () => undefined;
 
     async function loadAuthState() {
+      await runOneTimeDataReset();
+      if (!isMounted) return;
+
+      // Se suscribe solamente después del reset para que INITIAL_SESSION no pueda
+      // restaurar una sesión antigua mientras todavía se limpian los datos locales.
+      unsubscribeAuthState = subscribeToAuthState((nextSession) => {
+        setSession(nextSession);
+        setIsSessionReady(true);
+      });
+      unsubscribeOfflineAccount = subscribeToOfflineAccount((nextAccount) => {
+        setOfflineAccount(nextAccount);
+        setIsSessionReady(true);
+      });
+
       const storedAccount = await getOfflineAccount();
       if (isMounted) {
         setOfflineAccount(storedAccount);
@@ -44,18 +62,9 @@ export function useAuthSession() {
 
     void loadAuthState();
 
-    const unsubscribe = subscribeToAuthState((nextSession) => {
-      setSession(nextSession);
-      setIsSessionReady(true);
-    });
-    const unsubscribeOfflineAccount = subscribeToOfflineAccount((nextAccount) => {
-      setOfflineAccount(nextAccount);
-      setIsSessionReady(true);
-    });
-
     return () => {
       isMounted = false;
-      unsubscribe();
+      unsubscribeAuthState();
       unsubscribeOfflineAccount();
     };
   }, []);

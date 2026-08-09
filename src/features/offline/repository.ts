@@ -8,6 +8,7 @@ import type {
   TransactionInput,
   TransactionListItem,
 } from '@/features/transactions/types';
+import type { Wallet, WalletInput } from '@/features/wallets/types';
 
 import {
   assertLocalUserIsBootstrapped,
@@ -20,14 +21,17 @@ import type {
   CategorySyncRecord,
   LocalCategory,
   LocalTransaction,
+  LocalWallet,
   SubmittedSyncChange,
   SyncEntity,
   SyncSnapshot,
   TransactionSyncRecord,
+  WalletSyncRecord,
 } from './types';
 
 type CategoryRow = LocalCategory;
 type TransactionRow = LocalTransaction;
+type WalletRow = LocalWallet;
 type TransactionListRow = Omit<TransactionRow, 'deleted_at' | 'user_id'> & {
   category_color: string | null;
   category_icon_key: string | null;
@@ -217,20 +221,171 @@ export async function deleteLocalCategory(categoryId: string) {
   emitLocalDataChanged();
 }
 
-export async function listLocalTransactions() {
+export async function listLocalWallets() {
+  const userId = await getReadyUserId();
+  const database = await getLocalDatabase();
+  const rows = await database.getAllAsync<WalletRow>(
+    `SELECT user_id, id, name, type, created_at, client_updated_at,
+            last_change_id, deleted_at
+       FROM local_wallets
+      WHERE user_id = ? AND deleted_at IS NULL
+      ORDER BY created_at ASC, id ASC`,
+    userId,
+  );
+
+  return rows.map<Wallet>(({ id, name, type }) => ({ id, name, type }));
+}
+
+export async function getLocalWallet(walletId: string) {
+  const wallets = await listLocalWallets();
+  const wallet = wallets.find((currentWallet) => currentWallet.id === walletId);
+
+  if (!wallet) throw new Error('No se encontró la billetera.');
+  return wallet;
+}
+
+async function assertWalletNameAvailable(
+  database: SQLiteDatabase,
+  userId: string,
+  name: string,
+  excludedWalletId?: string,
+) {
+  const wallets = await database.getAllAsync<{ id: string; name: string }>(
+    `SELECT id, name
+       FROM local_wallets
+      WHERE user_id = ?
+        AND deleted_at IS NULL`,
+    userId,
+  );
+  const normalizedName = name.trim().toLocaleLowerCase();
+  const duplicate = wallets.some(
+    (wallet) =>
+      wallet.id !== excludedWalletId &&
+      wallet.name.trim().toLocaleLowerCase() === normalizedName,
+  );
+
+  if (duplicate) throw new Error('Ya existe una billetera con ese nombre.');
+}
+
+export async function createLocalWallet(input: WalletInput) {
+  const userId = await getReadyUserId();
+  const id = Crypto.randomUUID();
+  const changeId = Crypto.randomUUID();
+  const changedAt = nextTimestamp();
+  const name = input.name.trim();
+  if (!name) throw new Error('Escribe el nombre de la billetera.');
+
+  await withLocalTransaction(async (database) => {
+    await assertWalletNameAvailable(database, userId, name);
+    await database.runAsync(
+      `INSERT INTO local_wallets (
+        user_id, id, name, type, created_at, client_updated_at, last_change_id, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+      userId,
+      id,
+      name,
+      input.type,
+      changedAt,
+      changedAt,
+      changeId,
+    );
+    await enqueueChange(database, userId, 'wallet', id, changeId, changedAt);
+  });
+
+  emitLocalDataChanged();
+  return id;
+}
+
+export async function updateLocalWallet(walletId: string, input: WalletInput) {
+  const userId = await getReadyUserId();
+  const name = input.name.trim();
+  if (!name) throw new Error('Escribe el nombre de la billetera.');
+
+  await withLocalTransaction(async (database) => {
+    const current = await database.getFirstAsync<WalletRow>(
+      `SELECT * FROM local_wallets
+        WHERE user_id = ? AND id = ? AND deleted_at IS NULL`,
+      userId,
+      walletId,
+    );
+
+    if (!current) throw new Error('No se encontró la billetera.');
+    await assertWalletNameAvailable(database, userId, name, walletId);
+
+    const changeId = Crypto.randomUUID();
+    const changedAt = nextTimestamp(current.client_updated_at);
+    await database.runAsync(
+      `UPDATE local_wallets
+          SET name = ?, type = ?, client_updated_at = ?, last_change_id = ?, deleted_at = NULL
+        WHERE user_id = ? AND id = ?`,
+      name,
+      input.type,
+      changedAt,
+      changeId,
+      userId,
+      walletId,
+    );
+    await enqueueChange(database, userId, 'wallet', walletId, changeId, changedAt);
+  });
+
+  emitLocalDataChanged();
+}
+
+export async function deleteLocalWallet(walletId: string) {
+  const userId = await getReadyUserId();
+
+  await withLocalTransaction(async (database) => {
+    const current = await database.getFirstAsync<WalletRow>(
+      `SELECT * FROM local_wallets
+        WHERE user_id = ? AND id = ? AND deleted_at IS NULL`,
+      userId,
+      walletId,
+    );
+
+    if (!current) throw new Error('No se encontró la billetera.');
+
+    const changeId = Crypto.randomUUID();
+    const changedAt = nextTimestamp(current.client_updated_at);
+    await database.runAsync(
+      `UPDATE local_wallets
+          SET client_updated_at = ?, last_change_id = ?, deleted_at = ?
+        WHERE user_id = ? AND id = ?`,
+      changedAt,
+      changeId,
+      changedAt,
+      userId,
+      walletId,
+    );
+    await database.runAsync(
+      `UPDATE local_transactions
+          SET wallet_id = NULL
+        WHERE user_id = ? AND wallet_id = ?`,
+      userId,
+      walletId,
+    );
+    await enqueueChange(database, userId, 'wallet', walletId, changeId, changedAt);
+  });
+
+  emitLocalDataChanged();
+}
+
+export async function listLocalTransactions(walletId: string | null = null) {
   const userId = await getReadyUserId();
   const database = await getLocalDatabase();
   const rows = await database.getAllAsync<TransactionListRow>(
-    `SELECT t.id, t.category_id, t.type, t.amount, t.description, t.transaction_date,
+    `SELECT t.id, t.category_id, t.wallet_id, t.type, t.amount, t.description, t.transaction_date,
             t.created_at, t.client_updated_at, t.last_change_id,
             c.name AS category_name, c.color AS category_color,
             c.icon_key AS category_icon_key
        FROM local_transactions t
        LEFT JOIN local_categories c
          ON c.user_id = t.user_id AND c.id = t.category_id AND c.deleted_at IS NULL
-      WHERE t.user_id = ? AND t.deleted_at IS NULL
-      ORDER BY t.transaction_date DESC, t.created_at DESC`,
+       WHERE t.user_id = ? AND t.deleted_at IS NULL
+         AND (? IS NULL OR t.wallet_id = ?)
+       ORDER BY t.transaction_date DESC, t.created_at DESC`,
     userId,
+    walletId,
+    walletId,
   );
 
   return rows.map<TransactionListItem>((row) => ({
@@ -246,14 +401,16 @@ export async function listLocalTransactions() {
     id: row.id,
     transaction_date: row.transaction_date,
     type: row.type,
+    wallet_id: row.wallet_id,
   }));
 }
 
 export async function getLocalTransactionEditorData(transactionId: string) {
   const userId = await getReadyUserId();
   const database = await getLocalDatabase();
-  const [categories, transaction] = await Promise.all([
+  const [categories, wallets, transaction] = await Promise.all([
     listLocalCategories(),
+    listLocalWallets(),
     database.getFirstAsync<TransactionRow>(
       `SELECT * FROM local_transactions
         WHERE user_id = ? AND id = ? AND deleted_at IS NULL`,
@@ -270,9 +427,10 @@ export async function getLocalTransactionEditorData(transactionId: string) {
     description: transaction.description,
     transaction_date: transaction.transaction_date,
     type: transaction.type,
+    wallet_id: transaction.wallet_id,
   };
 
-  return { categories, transaction: details };
+  return { categories, transaction: details, wallets };
 }
 
 async function normalizeCategoryId(
@@ -293,6 +451,22 @@ async function normalizeCategoryId(
   return category?.id ?? null;
 }
 
+async function normalizeWalletId(
+  database: SQLiteDatabase,
+  userId: string,
+  walletId: string | null,
+) {
+  if (!walletId) return null;
+
+  const wallet = await database.getFirstAsync<{ id: string }>(
+    `SELECT id FROM local_wallets
+      WHERE user_id = ? AND id = ? AND deleted_at IS NULL`,
+    userId,
+    walletId,
+  );
+  return wallet?.id ?? null;
+}
+
 export async function createLocalTransaction(input: TransactionInput) {
   const userId = await getReadyUserId();
   const id = Crypto.randomUUID();
@@ -301,14 +475,16 @@ export async function createLocalTransaction(input: TransactionInput) {
 
   await withLocalTransaction(async (database) => {
     const categoryId = await normalizeCategoryId(database, userId, input.categoryId, input.type);
+    const walletId = await normalizeWalletId(database, userId, input.walletId);
     await database.runAsync(
       `INSERT INTO local_transactions (
-        user_id, id, category_id, type, amount, description, transaction_date,
+        user_id, id, category_id, wallet_id, type, amount, description, transaction_date,
         created_at, client_updated_at, last_change_id, deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
       userId,
       id,
       categoryId,
+      walletId,
       input.type,
       input.amount,
       input.description || null,
@@ -338,14 +514,16 @@ export async function updateLocalTransaction(transactionId: string, input: Trans
     if (!current) throw new Error('No se encontró el movimiento.');
 
     const categoryId = await normalizeCategoryId(database, userId, input.categoryId, input.type);
+    const walletId = await normalizeWalletId(database, userId, input.walletId);
     const changeId = Crypto.randomUUID();
     const changedAt = nextTimestamp(current.client_updated_at);
     await database.runAsync(
       `UPDATE local_transactions
-          SET category_id = ?, type = ?, amount = ?, description = ?, transaction_date = ?,
+          SET category_id = ?, wallet_id = ?, type = ?, amount = ?, description = ?, transaction_date = ?,
               client_updated_at = ?, last_change_id = ?, deleted_at = NULL
         WHERE user_id = ? AND id = ?`,
       categoryId,
+      walletId,
       input.type,
       input.amount,
       input.description || null,
@@ -418,6 +596,19 @@ function toTransactionSyncRecord(row: TransactionRow): TransactionSyncRecord {
     last_change_id: row.last_change_id,
     transaction_date: row.transaction_date,
     type: row.type,
+    wallet_id: row.wallet_id,
+  };
+}
+
+function toWalletSyncRecord(row: WalletRow): WalletSyncRecord {
+  return {
+    client_updated_at: row.client_updated_at,
+    created_at: row.created_at,
+    deleted_at: row.deleted_at,
+    id: row.id,
+    last_change_id: row.last_change_id,
+    name: row.name,
+    type: row.type,
   };
 }
 
@@ -451,7 +642,7 @@ export async function getPendingSyncChanges(userId: string) {
           record: toCategorySyncRecord(row),
         });
       }
-    } else {
+    } else if (queued.entity_type === 'transaction') {
       const row = await database.getFirstAsync<TransactionRow>(
         'SELECT * FROM local_transactions WHERE user_id = ? AND id = ?',
         userId,
@@ -463,6 +654,20 @@ export async function getPendingSyncChanges(userId: string) {
           entity: 'transaction',
           entityId: queued.entity_id,
           record: toTransactionSyncRecord(row),
+        });
+      }
+    } else {
+      const row = await database.getFirstAsync<WalletRow>(
+        'SELECT * FROM local_wallets WHERE user_id = ? AND id = ?',
+        userId,
+        queued.entity_id,
+      );
+      if (row) {
+        changes.push({
+          changeId: queued.change_id,
+          entity: 'wallet',
+          entityId: queued.entity_id,
+          record: toWalletSyncRecord(row),
         });
       }
     }
@@ -526,11 +731,12 @@ async function upsertRemoteTransaction(
 
   await database.runAsync(
     `INSERT INTO local_transactions (
-       user_id, id, category_id, type, amount, description, transaction_date,
+       user_id, id, category_id, wallet_id, type, amount, description, transaction_date,
        created_at, client_updated_at, last_change_id, deleted_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (user_id, id) DO UPDATE SET
        category_id = excluded.category_id,
+       wallet_id = excluded.wallet_id,
        type = excluded.type,
        amount = excluded.amount,
        description = excluded.description,
@@ -542,10 +748,46 @@ async function upsertRemoteTransaction(
     userId,
     remote.id,
     remote.category_id,
+    remote.wallet_id,
     remote.type,
     Number(remote.amount),
     remote.description,
     remote.transaction_date,
+    remote.created_at,
+    remote.client_updated_at,
+    remote.last_change_id,
+    remote.deleted_at,
+  );
+}
+
+async function upsertRemoteWallet(
+  database: SQLiteDatabase,
+  userId: string,
+  remote: WalletSyncRecord,
+) {
+  const local = await database.getFirstAsync<WalletRow>(
+    'SELECT * FROM local_wallets WHERE user_id = ? AND id = ?',
+    userId,
+    remote.id,
+  );
+
+  if (local && compareVersions(remote, local) < 0) return;
+
+  await database.runAsync(
+    `INSERT INTO local_wallets (
+       user_id, id, name, type, created_at, client_updated_at, last_change_id, deleted_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (user_id, id) DO UPDATE SET
+       name = excluded.name,
+       type = excluded.type,
+       created_at = excluded.created_at,
+       client_updated_at = excluded.client_updated_at,
+       last_change_id = excluded.last_change_id,
+       deleted_at = excluded.deleted_at`,
+    userId,
+    remote.id,
+    remote.name,
+    remote.type,
     remote.created_at,
     remote.client_updated_at,
     remote.last_change_id,
@@ -559,7 +801,12 @@ async function removeMissingCanonicalRows(
   entity: SyncEntity,
   serverIds: Set<string>,
 ) {
-  const table = entity === 'category' ? 'local_categories' : 'local_transactions';
+  const table =
+    entity === 'category'
+      ? 'local_categories'
+      : entity === 'wallet'
+        ? 'local_wallets'
+        : 'local_transactions';
   const rows = await database.getAllAsync<{ id: string }>(
     `SELECT item.id
        FROM ${table} AS item
@@ -585,6 +832,9 @@ export async function mergeSyncSnapshot(
   submitted: SubmittedSyncChange[],
 ) {
   await withLocalTransaction(async (database) => {
+    for (const wallet of snapshot.wallets) {
+      await upsertRemoteWallet(database, userId, wallet);
+    }
     for (const category of snapshot.categories) {
       await upsertRemoteCategory(database, userId, category);
     }
@@ -592,12 +842,20 @@ export async function mergeSyncSnapshot(
       await upsertRemoteTransaction(database, userId, transaction);
     }
 
+    const walletIds = new Set(snapshot.wallets.map((wallet) => wallet.id));
     const categoryIds = new Set(snapshot.categories.map((category) => category.id));
     const transactionIds = new Set(snapshot.transactions.map((transaction) => transaction.id));
+    await removeMissingCanonicalRows(database, userId, 'wallet', walletIds);
     await removeMissingCanonicalRows(database, userId, 'category', categoryIds);
     await removeMissingCanonicalRows(database, userId, 'transaction', transactionIds);
 
-    const remoteVersions = new Map<string, CategorySyncRecord | TransactionSyncRecord>();
+    const remoteVersions = new Map<
+      string,
+      CategorySyncRecord | TransactionSyncRecord | WalletSyncRecord
+    >();
+    for (const wallet of snapshot.wallets) {
+      remoteVersions.set(`wallet:${wallet.id}`, wallet);
+    }
     for (const category of snapshot.categories) {
       remoteVersions.set(`category:${category.id}`, category);
     }

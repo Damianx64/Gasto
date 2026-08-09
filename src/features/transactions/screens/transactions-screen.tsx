@@ -18,6 +18,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { CategoryIcon } from '@/features/categories/components/category-icon';
 import { useSync } from '@/features/offline/sync-context';
+import { useWalletScope } from '@/features/wallets/wallet-scope-context';
 import { getErrorMessage } from '@/lib/errors';
 
 import {
@@ -150,6 +151,7 @@ function groupTransactionsByDay(transactions: TransactionListItem[]) {
 
 export default function TransactionsScreen() {
   const { revision, syncNow } = useSync();
+  const { selectedWallet, selectedWalletId } = useWalletScope();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('month');
   const [isLoading, setIsLoading] = useState(true);
@@ -176,7 +178,7 @@ export default function TransactionsScreen() {
 
     try {
       if (mode === 'refresh') await syncNow();
-      setTransactions(await listTransactions());
+      setTransactions(await listTransactions(selectedWalletId));
       hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -184,7 +186,7 @@ export default function TransactionsScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [syncNow]);
+  }, [selectedWalletId, syncNow]);
 
   useFocusEffect(
     useCallback(() => {
@@ -291,17 +293,22 @@ export default function TransactionsScreen() {
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.content}>
           <View style={styles.header}>
-            <View style={styles.titleCluster}>
-              <TransactionsText adjustsFontSizeToFit numberOfLines={1} style={styles.title}>
-                Movimientos
+            <View style={styles.titleCopy}>
+              <View style={styles.titleCluster}>
+                <TransactionsText adjustsFontSizeToFit numberOfLines={1} style={styles.title}>
+                  Movimientos
+                </TransactionsText>
+                <Image
+                  accessible={false}
+                  contentFit="contain"
+                  pointerEvents="none"
+                  source={decorations.leaves}
+                  style={styles.titleDecoration}
+                />
+              </View>
+              <TransactionsText type="small" themeColor="textSecondary" numberOfLines={1}>
+                {selectedWallet?.name ?? 'Balance general'}
               </TransactionsText>
-              <Image
-                accessible={false}
-                contentFit="contain"
-                pointerEvents="none"
-                source={decorations.leaves}
-                style={styles.titleDecoration}
-              />
             </View>
 
             <Pressable
@@ -482,8 +489,11 @@ const styles = StyleSheet.create({
   },
   titleCluster: {
     alignItems: 'center',
-    flex: 1,
     flexDirection: 'row',
+    minWidth: 0,
+  },
+  titleCopy: {
+    flex: 1,
     minWidth: 0,
   },
   title: {

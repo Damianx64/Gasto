@@ -8,8 +8,8 @@ import {
 
 import type { TransactionInput } from './types';
 
-export async function listTransactions() {
-  return listLocalTransactions();
+export async function listTransactions(walletId: string | null = null) {
+  return listLocalTransactions(walletId);
 }
 
 export async function getTransactionEditorData(transactionId: string) {

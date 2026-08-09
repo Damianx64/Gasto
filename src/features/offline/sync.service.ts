@@ -10,8 +10,9 @@ import type {
   SubmittedSyncChange,
   SyncSnapshot,
   TransactionSyncRecord,
+  WalletSyncRecord,
 } from './types';
-import { isTransactionType } from './types';
+import { isTransactionType, isWalletType } from './types';
 
 const activeSynchronizations = new Map<string, Promise<void>>();
 
@@ -50,8 +51,25 @@ function isTransactionRecord(value: unknown): value is TransactionSyncRecord {
   return (
     typeof record.id === 'string' &&
     isTransactionType(record.type) &&
+    (record.category_id === null || typeof record.category_id === 'string') &&
+    (record.wallet_id === null || typeof record.wallet_id === 'string') &&
     (typeof record.amount === 'number' || typeof record.amount === 'string') &&
     typeof record.transaction_date === 'string' &&
+    typeof record.created_at === 'string' &&
+    Number.isFinite(Date.parse(record.created_at)) &&
+    typeof record.client_updated_at === 'string' &&
+    Number.isFinite(Date.parse(record.client_updated_at)) &&
+    typeof record.last_change_id === 'string'
+  );
+}
+
+function isWalletRecord(value: unknown): value is WalletSyncRecord {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Partial<WalletSyncRecord>;
+  return (
+    typeof record.id === 'string' &&
+    typeof record.name === 'string' &&
+    isWalletType(record.type) &&
     typeof record.created_at === 'string' &&
     Number.isFinite(Date.parse(record.created_at)) &&
     typeof record.client_updated_at === 'string' &&
@@ -83,6 +101,8 @@ function parseSnapshot(value: unknown): SyncSnapshot {
     !candidate.categories.every(isCategoryRecord) ||
     !Array.isArray(candidate.transactions) ||
     !candidate.transactions.every(isTransactionRecord) ||
+    !Array.isArray(candidate.wallets) ||
+    !candidate.wallets.every(isWalletRecord) ||
     typeof candidate.server_time !== 'string'
   ) {
     throw new Error('Supabase devolvió datos incompletos durante la sincronización.');
@@ -90,6 +110,7 @@ function parseSnapshot(value: unknown): SyncSnapshot {
 
   const categories = candidate.categories as CategorySyncRecord[];
   const transactions = candidate.transactions as TransactionSyncRecord[];
+  const wallets = candidate.wallets as WalletSyncRecord[];
 
   return {
     categories: categories.map((category) => ({
@@ -102,6 +123,11 @@ function parseSnapshot(value: unknown): SyncSnapshot {
       ...transaction,
       created_at: normalizeTimestamp(transaction.created_at),
       deleted_at: normalizeNullableTimestamp(transaction.deleted_at),
+    })),
+    wallets: wallets.map((wallet) => ({
+      ...wallet,
+      created_at: normalizeTimestamp(wallet.created_at),
+      deleted_at: normalizeNullableTimestamp(wallet.deleted_at),
     })),
   };
 }
@@ -131,6 +157,11 @@ async function runSynchronization(userId: string) {
   if (error) {
     if (error.code === 'PGRST301' || /jwt|auth|session/i.test(error.message)) {
       throw new SyncAuthenticationError();
+    }
+    if (error.code === '23505') {
+      throw new Error(
+        'Ya existe una billetera con ese nombre en otro dispositivo. Renombra la billetera pendiente para continuar la sincronización.',
+      );
     }
     throw error;
   }
