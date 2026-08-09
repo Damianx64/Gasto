@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
 import { router, type Href, useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -45,6 +47,10 @@ const palette = {
   terracotta: '#C45D32',
   white: '#FFFDF8',
 } as const;
+
+const BALANCE_DOT_SIZE = 8;
+const BALANCE_DOT_GAP = 7;
+const BALANCE_DOT_STEP = BALANCE_DOT_SIZE + BALANCE_DOT_GAP;
 
 const decorations = {
   avatar: require('../../../../assets/decorations/hojas_icono.webp'),
@@ -189,7 +195,12 @@ export default function DashboardScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [balanceCardWidth, setBalanceCardWidth] = useState(0);
   const hasLoadedRef = useRef(false);
+  const hasAnimatedWalletChangeRef = useRef(false);
   const balanceCarouselRef = useRef<ScrollView>(null);
+  const balanceScrollX = useRef(new Animated.Value(0)).current;
+  const summaryFade = useRef(new Animated.Value(1)).current;
+  const categoriesFade = useRef(new Animated.Value(1)).current;
+  const movementsFade = useRef(new Animated.Value(1)).current;
 
   const userName = getUserName(
     session?.user.email ?? offlineAccount?.email ?? undefined,
@@ -277,12 +288,52 @@ export default function DashboardScreen() {
       0,
       balanceCards.findIndex((card) => card.walletId === selectedWalletId),
     );
+    balanceScrollX.setValue(selectedIndex * balanceCardWidth);
     balanceCarouselRef.current?.scrollTo({
       animated: false,
       x: selectedIndex * balanceCardWidth,
       y: 0,
     });
-  }, [balanceCardWidth, balanceCards, selectedWalletId]);
+  }, [balanceCardWidth, balanceCards, balanceScrollX, selectedWalletId]);
+
+  useLayoutEffect(() => {
+    if (!hasAnimatedWalletChangeRef.current) {
+      hasAnimatedWalletChangeRef.current = true;
+      return;
+    }
+
+    const fadeValues = [summaryFade, categoriesFade, movementsFade];
+    fadeValues.forEach((value) => {
+      value.stopAnimation();
+      value.setValue(0);
+    });
+
+    const animation = Animated.parallel([
+      Animated.timing(summaryFade, {
+        duration: 150,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      Animated.timing(categoriesFade, {
+        delay: 20,
+        duration: 160,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      Animated.timing(movementsFade, {
+        delay: 40,
+        duration: 170,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]);
+
+    animation.start();
+    return () => animation.stop();
+  }, [categoriesFade, movementsFade, selectedWalletId, summaryFade]);
 
   const dashboard = useMemo(() => {
     const now = new Date();
@@ -339,6 +390,76 @@ export default function DashboardScreen() {
     backgroundColor: palette.surface,
     borderColor: palette.border,
   };
+
+  const balanceDotAnimation = useMemo(() => {
+    if (!balanceCardWidth || balanceCards.length < 2) return null;
+
+    const inputRange = [0];
+    const translateOutputRange = [0];
+    const widthOutputRange = [BALANCE_DOT_SIZE];
+
+    for (let index = 0; index < balanceCards.length - 1; index += 1) {
+      inputRange.push((index + 0.5) * balanceCardWidth, (index + 1) * balanceCardWidth);
+      translateOutputRange.push(index * BALANCE_DOT_STEP, (index + 1) * BALANCE_DOT_STEP);
+      widthOutputRange.push(BALANCE_DOT_SIZE + BALANCE_DOT_STEP, BALANCE_DOT_SIZE);
+    }
+
+    return {
+      transform: [
+        {
+          translateX: balanceScrollX.interpolate({
+            extrapolate: 'clamp',
+            inputRange,
+            outputRange: translateOutputRange,
+          }),
+        },
+      ],
+      width: balanceScrollX.interpolate({
+        extrapolate: 'clamp',
+        inputRange,
+        outputRange: widthOutputRange,
+      }),
+    };
+  }, [balanceCardWidth, balanceCards.length, balanceScrollX]);
+
+  const walletContentFadeStyles = useMemo(
+    () => ({
+      categories: {
+        opacity: categoriesFade,
+        transform: [
+          {
+            translateY: categoriesFade.interpolate({
+              inputRange: [0, 1],
+              outputRange: [4, 0],
+            }),
+          },
+        ],
+      },
+      movements: {
+        opacity: movementsFade,
+        transform: [
+          {
+            translateY: movementsFade.interpolate({
+              inputRange: [0, 1],
+              outputRange: [4, 0],
+            }),
+          },
+        ],
+      },
+      summary: {
+        opacity: summaryFade,
+        transform: [
+          {
+            translateY: summaryFade.interpolate({
+              inputRange: [0, 1],
+              outputRange: [3, 0],
+            }),
+          },
+        ],
+      },
+    }),
+    [categoriesFade, movementsFade, summaryFade],
+  );
 
   function openTransaction(transactionId: string) {
     router.push({ pathname: '/transaction/[id]', params: { id: transactionId } } as Href);
@@ -457,9 +578,13 @@ export default function DashboardScreen() {
                   accessibilityLabel="Selector de billetera"
                   onLayout={(event) => setBalanceCardWidth(event.nativeEvent.layout.width)}
                   style={styles.balanceCarousel}>
-                  <ScrollView
+                  <Animated.ScrollView
                     horizontal
                     nestedScrollEnabled
+                    onScroll={Animated.event(
+                      [{ nativeEvent: { contentOffset: { x: balanceScrollX } } }],
+                      { useNativeDriver: false },
+                    )}
                     onMomentumScrollEnd={(event) => {
                       if (!balanceCardWidth) return;
                       const index = Math.max(
@@ -474,6 +599,7 @@ export default function DashboardScreen() {
                     pagingEnabled
                     ref={balanceCarouselRef}
                     scrollEnabled={balanceCards.length > 1}
+                    scrollEventThrottle={16}
                     showsHorizontalScrollIndicator={false}>
                     {balanceCards.map((card) => (
                       <View
@@ -548,22 +674,31 @@ export default function DashboardScreen() {
                         </View>
                       </View>
                     ))}
-                  </ScrollView>
+                  </Animated.ScrollView>
                   {balanceCards.length > 1 ? (
                     <View accessibilityRole="tablist" style={styles.balanceDots}>
-                      {balanceCards.map((card) => {
-                        const isSelected = card.walletId === selectedWalletId;
-                        return (
-                          <Pressable
-                            accessibilityLabel={`Mostrar ${card.name}`}
-                            accessibilityRole="tab"
-                            accessibilityState={{ selected: isSelected }}
-                            key={card.walletId ?? 'general-dot'}
-                            onPress={() => setSelectedWalletId(card.walletId)}
-                            style={[styles.balanceDot, isSelected && styles.balanceDotActive]}
+                      <View style={styles.balanceDotsTrack}>
+                        {balanceCards.map((card) => {
+                          const isSelected = card.walletId === selectedWalletId;
+                          return (
+                            <Pressable
+                              accessibilityLabel={`Mostrar ${card.name}`}
+                              accessibilityRole="tab"
+                              accessibilityState={{ selected: isSelected }}
+                              hitSlop={8}
+                              key={card.walletId ?? 'general-dot'}
+                              onPress={() => setSelectedWalletId(card.walletId)}
+                              style={styles.balanceDot}
+                            />
+                          );
+                        })}
+                        {balanceDotAnimation ? (
+                          <Animated.View
+                            pointerEvents="none"
+                            style={[styles.balanceDotActive, balanceDotAnimation]}
                           />
-                        );
-                      })}
+                        ) : null}
+                      </View>
                     </View>
                   ) : null}
                 </View>
@@ -587,18 +722,20 @@ export default function DashboardScreen() {
                         />
                       </View>
                     </View>
-                    <DashboardText
-                      style={[styles.summaryAmount, styles.incomeAmount]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit>
-                      {formatCurrency(dashboard.currentSummary.income)}
-                    </DashboardText>
-                    <View style={styles.summaryFooter}>
-                      <DashboardText type="small" themeColor="textSecondary" style={styles.periodText}>
-                        Este mes
+                    <Animated.View style={[styles.summaryData, walletContentFadeStyles.summary]}>
+                      <DashboardText
+                        style={[styles.summaryAmount, styles.incomeAmount]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit>
+                        {formatCurrency(dashboard.currentSummary.income)}
                       </DashboardText>
-                      <TrendLabel trend={dashboard.incomeTrend} />
-                    </View>
+                      <View style={styles.summaryFooter}>
+                        <DashboardText type="small" themeColor="textSecondary" style={styles.periodText}>
+                          Este mes
+                        </DashboardText>
+                        <TrendLabel trend={dashboard.incomeTrend} />
+                      </View>
+                    </Animated.View>
                   </View>
 
                   <View style={[styles.summaryCard, styles.expenseCard]}>
@@ -619,18 +756,20 @@ export default function DashboardScreen() {
                         />
                       </View>
                     </View>
-                    <DashboardText
-                      style={[styles.summaryAmount, styles.expenseAmount]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit>
-                      {formatCurrency(dashboard.currentSummary.expenses)}
-                    </DashboardText>
-                    <View style={styles.summaryFooter}>
-                      <DashboardText type="small" themeColor="textSecondary" style={styles.periodText}>
-                        Este mes
+                    <Animated.View style={[styles.summaryData, walletContentFadeStyles.summary]}>
+                      <DashboardText
+                        style={[styles.summaryAmount, styles.expenseAmount]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit>
+                        {formatCurrency(dashboard.currentSummary.expenses)}
                       </DashboardText>
-                      <TrendLabel inverted trend={dashboard.expenseTrend} />
-                    </View>
+                      <View style={styles.summaryFooter}>
+                        <DashboardText type="small" themeColor="textSecondary" style={styles.periodText}>
+                          Este mes
+                        </DashboardText>
+                        <TrendLabel inverted trend={dashboard.expenseTrend} />
+                      </View>
+                    </Animated.View>
                   </View>
                 </View>
 
@@ -664,47 +803,50 @@ export default function DashboardScreen() {
                     </Pressable>
                   </View>
 
-                  {dashboard.categories.length ? (
-                    <View style={styles.categoriesRow}>
-                      {dashboard.categories.map((category, index) => (
-                        <View
-                          key={category.name}
-                          style={[
-                            styles.categoryItem,
-                            index > 0 && {
-                              borderLeftColor: palette.border,
-                              borderLeftWidth: StyleSheet.hairlineWidth,
-                            },
-                          ]}>
-                          <CategoryIcon
-                            backgroundColor={getSoftCategoryColor(category.color)}
-                            iconColor={category.color || palette.olive}
-                            iconKey={category.icon_key}
-                            size={48}
-                            symbolSize={23}
-                          />
-                          <DashboardText
-                            type="smallBold"
-                            numberOfLines={1}
-                            style={styles.categoryName}>
-                            {category.name}
-                          </DashboardText>
-                          <DashboardText type="small" numberOfLines={1} style={styles.categoryAmount}>
-                            {formatCurrency(category.amount)}
-                          </DashboardText>
-                          <DashboardText
-                            type="smallBold"
-                            style={[styles.categoryPercentage, { color: category.color || palette.olive }]}>
-                            {category.percentage.toFixed(0)}%
-                          </DashboardText>
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <DashboardText type="small" themeColor="textSecondary" style={styles.emptyText}>
-                      Aún no hay gastos registrados este mes.
-                    </DashboardText>
-                  )}
+                  <Animated.View
+                    style={[styles.animatedSectionContent, walletContentFadeStyles.categories]}>
+                    {dashboard.categories.length ? (
+                      <View style={styles.categoriesRow}>
+                        {dashboard.categories.map((category, index) => (
+                          <View
+                            key={category.name}
+                            style={[
+                              styles.categoryItem,
+                              index > 0 && {
+                                borderLeftColor: palette.border,
+                                borderLeftWidth: StyleSheet.hairlineWidth,
+                              },
+                            ]}>
+                            <CategoryIcon
+                              backgroundColor={getSoftCategoryColor(category.color)}
+                              iconColor={category.color || palette.olive}
+                              iconKey={category.icon_key}
+                              size={48}
+                              symbolSize={23}
+                            />
+                            <DashboardText
+                              type="smallBold"
+                              numberOfLines={1}
+                              style={styles.categoryName}>
+                              {category.name}
+                            </DashboardText>
+                            <DashboardText type="small" numberOfLines={1} style={styles.categoryAmount}>
+                              {formatCurrency(category.amount)}
+                            </DashboardText>
+                            <DashboardText
+                              type="smallBold"
+                              style={[styles.categoryPercentage, { color: category.color || palette.olive }]}>
+                              {category.percentage.toFixed(0)}%
+                            </DashboardText>
+                          </View>
+                        ))}
+                      </View>
+                    ) : (
+                      <DashboardText type="small" themeColor="textSecondary" style={styles.emptyText}>
+                        Aún no hay gastos registrados este mes.
+                      </DashboardText>
+                    )}
+                  </Animated.View>
                 </View>
 
                 <View style={[styles.sectionCard, cardColors]}>
@@ -733,8 +875,10 @@ export default function DashboardScreen() {
                     </Pressable>
                   </View>
 
-                  {dashboard.recentTransactions.length ? (
-                    <View style={styles.transactionsList}>
+                  <Animated.View
+                    style={[styles.animatedSectionContent, walletContentFadeStyles.movements]}>
+                    {dashboard.recentTransactions.length ? (
+                      <View style={styles.transactionsList}>
                       {dashboard.recentTransactions.map((transaction, index) => {
                         const isIncome = transaction.type === 'income';
                         const category = getTransactionCategory(transaction);
@@ -797,25 +941,26 @@ export default function DashboardScreen() {
                           </Pressable>
                         );
                       })}
-                    </View>
-                  ) : (
-                    <View style={styles.emptyMovements}>
-                      <DashboardText type="small" themeColor="textSecondary" style={styles.emptyText}>
-                        Tus movimientos aparecerán aquí cuando registres el primero.
-                      </DashboardText>
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => router.push('/transaction/new')}
-                        style={({ pressed }) => [
-                          styles.primaryButton,
-                          pressed && styles.buttonPressed,
-                        ]}>
-                        <DashboardText type="smallBold" style={styles.primaryButtonText}>
-                          Nuevo movimiento
+                      </View>
+                    ) : (
+                      <View style={styles.emptyMovements}>
+                        <DashboardText type="small" themeColor="textSecondary" style={styles.emptyText}>
+                          Tus movimientos aparecerán aquí cuando registres el primero.
                         </DashboardText>
-                      </Pressable>
-                    </View>
-                  )}
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => router.push('/transaction/new')}
+                          style={({ pressed }) => [
+                            styles.primaryButton,
+                            pressed && styles.buttonPressed,
+                          ]}>
+                          <DashboardText type="smallBold" style={styles.primaryButtonText}>
+                            Nuevo movimiento
+                          </DashboardText>
+                        </Pressable>
+                      </View>
+                    )}
+                  </Animated.View>
                 </View>
               </>
             )}
@@ -1012,20 +1157,27 @@ const styles = StyleSheet.create({
   },
   balanceDots: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: 7,
     justifyContent: 'center',
     minHeight: 18,
   },
+  balanceDotsTrack: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 7,
+    position: 'relative',
+  },
   balanceDot: {
     backgroundColor: palette.border,
-    borderRadius: 5,
-    height: 8,
-    width: 8,
+    borderRadius: BALANCE_DOT_SIZE / 2,
+    height: BALANCE_DOT_SIZE,
+    width: BALANCE_DOT_SIZE,
   },
   balanceDotActive: {
     backgroundColor: palette.olive,
-    width: 20,
+    borderRadius: BALANCE_DOT_SIZE / 2,
+    height: BALANCE_DOT_SIZE,
+    left: 0,
+    position: 'absolute',
   },
   balanceDecoration: {
     bottom: -42,
@@ -1149,6 +1301,10 @@ const styles = StyleSheet.create({
     lineHeight: 31,
     zIndex: 1,
   },
+  summaryData: {
+    flex: 1,
+    gap: 9,
+  },
   incomeAmount: {
     color: palette.olive,
   },
@@ -1176,6 +1332,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: Spacing.three,
     position: 'relative',
+  },
+  animatedSectionContent: {
+    zIndex: 1,
   },
   categoriesDecoration: {
     bottom: -15,
