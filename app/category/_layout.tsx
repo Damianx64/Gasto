@@ -21,6 +21,7 @@ export default function CategoryLayout() {
           fontWeight: '500',
         },
       }}>
+      <Stack.Screen name="index" options={{ title: 'Categorías' }} />
       <Stack.Screen name="new" options={{ title: 'Nueva categoría' }} />
       <Stack.Screen name="[id]" options={{ title: 'Editar categoría' }} />
     </Stack>

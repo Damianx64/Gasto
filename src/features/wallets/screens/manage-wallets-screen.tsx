@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { Image } from 'expo-image';
 import { router, type Href, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -26,6 +27,13 @@ const palette = {
   surface: '#FEFCF7',
   white: '#FFFDF8',
 } as const;
+
+const decorations = {
+  branch: require('../../../../assets/decorations/hojas_icono.webp'),
+  flowers: require('../../../../assets/decorations/flores_vertical_2.webp'),
+  header: require('../../../../assets/decorations/hojas_horizontal_1.webp'),
+  leaves: require('../../../../assets/decorations/planta_vertical_1.webp'),
+};
 
 function getWalletTypeLabel(wallet: Wallet) {
   return wallet.type === 'cash' ? 'Efectivo' : 'Tarjeta de débito';
@@ -96,23 +104,41 @@ export default function ManageWalletsScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
             <View style={styles.headerCopy}>
-              <ThemedText style={styles.title}>Billeteras</ThemedText>
+              <View style={styles.titleRow}>
+                <ThemedText style={styles.title}>Billeteras</ThemedText>
+                <Image
+                  accessible={false}
+                  contentFit="contain"
+                  pointerEvents="none"
+                  source={decorations.header}
+                  style={styles.titleDecoration}
+                />
+              </View>
               <ThemedText style={styles.subtitle}>
                 Organiza tus movimientos por efectivo o débito.
               </ThemedText>
             </View>
-            <Pressable
-              accessibilityLabel="Añadir billetera"
-              accessibilityRole="button"
-              onPress={() => router.push('/wallet/new' as Href)}
-              style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
-              <SymbolView
-                name={{ android: 'add', ios: 'plus', web: 'add' }}
-                size={20}
-                tintColor={palette.white}
+            <View style={styles.addButtonWrap}>
+              <Image
+                accessible={false}
+                contentFit="contain"
+                pointerEvents="none"
+                source={decorations.branch}
+                style={styles.addButtonDecoration}
               />
-              <ThemedText style={styles.addButtonText}>Añadir</ThemedText>
-            </Pressable>
+              <Pressable
+                accessibilityLabel="Añadir billetera"
+                accessibilityRole="button"
+                onPress={() => router.push('/wallet/new' as Href)}
+                style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
+                <SymbolView
+                  name={{ android: 'add', ios: 'plus', web: 'add' }}
+                  size={20}
+                  tintColor={palette.white}
+                />
+                <ThemedText style={styles.addButtonText}>Añadir</ThemedText>
+              </Pressable>
+            </View>
           </View>
 
           {errorMessage ? (
@@ -144,8 +170,20 @@ export default function ManageWalletsScreen() {
             </View>
           ) : (
             <View style={styles.walletList}>
-              {wallets.map((wallet) => (
+              {wallets.map((wallet, index) => (
                 <View key={wallet.id} style={styles.walletCard}>
+                  <Image
+                    accessible={false}
+                    contentFit="contain"
+                    pointerEvents="none"
+                    source={index % 2 === 0 ? decorations.leaves : decorations.flowers}
+                    style={[
+                      styles.walletDecoration,
+                      index % 2 === 0
+                        ? styles.walletDecorationLeft
+                        : styles.walletDecorationRight,
+                    ]}
+                  />
                   <View style={styles.walletIcon}>
                     <SymbolView
                       name={
@@ -219,8 +257,31 @@ const styles = StyleSheet.create({
   },
   header: { alignItems: 'center', flexDirection: 'row', gap: Spacing.three },
   headerCopy: { flex: 1, gap: 3 },
+  titleRow: { alignItems: 'center', flexDirection: 'row' },
   title: { color: palette.ink, fontFamily: Fonts.serif, fontSize: 36, lineHeight: 43 },
+  titleDecoration: {
+    height: 34,
+    marginLeft: 5,
+    opacity: 0.8,
+    transform: [{ rotate: '-9deg' }],
+    width: 52,
+  },
   subtitle: { color: palette.muted, fontFamily: Fonts.serif, fontSize: 15, lineHeight: 21 },
+  addButtonWrap: {
+    justifyContent: 'center',
+    minHeight: 64,
+    paddingRight: 5,
+    position: 'relative',
+  },
+  addButtonDecoration: {
+    height: 84,
+    opacity: 0.72,
+    position: 'absolute',
+    right: -4,
+    top: -20,
+    transform: [{ rotate: '28deg' }],
+    width: 32,
+  },
   addButton: {
     alignItems: 'center',
     backgroundColor: palette.olive,
@@ -265,7 +326,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 11,
     minHeight: 92,
+    overflow: 'hidden',
     padding: 14,
+    position: 'relative',
+  },
+  walletDecoration: {
+    height: 108,
+    opacity: 0.56,
+    position: 'absolute',
+    width: 47,
+  },
+  walletDecorationLeft: {
+    bottom: -25,
+    left: -8,
+    transform: [{ rotate: '17deg' }],
+  },
+  walletDecorationRight: {
+    bottom: -26,
+    right: -5,
+    transform: [{ rotate: '-17deg' }, { scaleX: -1 }],
   },
   walletIcon: {
     alignItems: 'center',
@@ -274,8 +353,9 @@ const styles = StyleSheet.create({
     height: 52,
     justifyContent: 'center',
     width: 52,
+    zIndex: 1,
   },
-  walletCopy: { flex: 1, minWidth: 0 },
+  walletCopy: { flex: 1, minWidth: 0, zIndex: 1 },
   walletName: { color: palette.ink, fontFamily: Fonts.serif, fontSize: 20, lineHeight: 27 },
   iconButton: {
     alignItems: 'center',
@@ -285,6 +365,7 @@ const styles = StyleSheet.create({
     height: 46,
     justifyContent: 'center',
     width: 44,
+    zIndex: 1,
   },
   deleteButton: {
     alignItems: 'center',
@@ -293,6 +374,7 @@ const styles = StyleSheet.create({
     height: 46,
     justifyContent: 'center',
     width: 44,
+    zIndex: 1,
   },
   pressed: { opacity: 0.68 },
 });

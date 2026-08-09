@@ -7,9 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText, type ThemedTextProps } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
-import { requireOfflineUserId, signOut } from '@/features/auth/auth.api';
-import { clearLocalUserData, getLocalUserState } from '@/features/offline/database';
+import { Fonts, Spacing } from '@/constants/theme';
 import { useSync } from '@/features/offline/sync-context';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -35,7 +33,6 @@ const palette = {
 const decorations = {
   branch: require('../../../../assets/decorations/hojas_icono.webp'),
   flowers: require('../../../../assets/decorations/flores_vertical_2.webp'),
-  header: require('../../../../assets/decorations/hojas_horizontal_1.webp'),
   leaves: require('../../../../assets/decorations/planta_vertical_1.webp'),
 };
 
@@ -52,14 +49,12 @@ function SettingsText({ style, themeColor, ...props }: ThemedTextProps) {
   );
 }
 
-export default function SettingsScreen() {
-  const { revision, syncNow } = useSync();
+export default function ManageCategoriesScreen() {
+  const { revision } = useSync();
   const [categories, setCategories] = useState<Category[]>([]);
-  const [message, setMessage] = useState('');
   const [categoryError, setCategoryError] = useState('');
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [deletingCategoryId, setDeletingCategoryId] = useState('');
-  const [isSigningOut, setIsSigningOut] = useState(false);
   const hasLoadedCategoriesRef = useRef(false);
 
   const loadCategories = useCallback(async (mode: 'initial' | 'silent') => {
@@ -118,81 +113,20 @@ export default function SettingsScreen() {
     router.push({ pathname: '/category/[id]', params: { id: categoryId } } as Href);
   }
 
-  async function handleSignOut() {
-    setMessage('');
-    setIsSigningOut(true);
-
-    try {
-      const userId = await requireOfflineUserId();
-      if ((await getLocalUserState(userId)).pendingCount > 0) {
-        const synchronized = await syncNow();
-        const remainingPending = (await getLocalUserState(userId)).pendingCount;
-        if (!synchronized || remainingPending > 0) {
-          throw new Error(
-            'No puedes cerrar sesión mientras haya cambios pendientes. Conéctate y vuelve a intentarlo.',
-          );
-        }
-      }
-
-      await signOut();
-      await clearLocalUserData(userId);
-      router.replace('/login');
-    } catch (error) {
-      setMessage(getErrorMessage(error));
-    } finally {
-      setIsSigningOut(false);
-    }
-  }
-
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <SafeAreaView edges={['bottom']} style={styles.safeArea}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
-            <View style={styles.titleRow}>
-              <SettingsText style={styles.title}>Ajustes</SettingsText>
-              <Image
-                accessible={false}
-                contentFit="contain"
-                pointerEvents="none"
-                source={decorations.header}
-                style={styles.titleDecoration}
-              />
-            </View>
-
-            <Pressable
-              accessibilityHint="Abre la administración de billeteras"
-              accessibilityRole="button"
-              onPress={() => router.push('/wallet' as Href)}
-              style={({ pressed }) => [styles.walletsCard, pressed && styles.buttonPressed]}>
-              <View style={styles.walletsIcon}>
-                <SymbolView
-                  name={{
-                    android: 'account_balance_wallet',
-                    ios: 'wallet.pass',
-                    web: 'account_balance_wallet',
-                  }}
-                  size={27}
-                  tintColor={palette.white}
-                />
-              </View>
-              <View style={styles.walletsCopy}>
-                <SettingsText style={styles.walletsTitle}>Billeteras</SettingsText>
-                <SettingsText type="small" themeColor="textSecondary">
-                  Añade, edita o elimina tus billeteras.
+            <View style={styles.sectionHeader}>
+              <View style={styles.headerCopy}>
+                <SettingsText style={styles.title}>Categorías</SettingsText>
+                <SettingsText type="small" themeColor="textSecondary" style={styles.subtitle}>
+                  Organiza tus movimientos por ingreso o gasto.
                 </SettingsText>
               </View>
-              <SymbolView
-                name={{ android: 'chevron_right', ios: 'chevron.right', web: 'chevron_right' }}
-                size={22}
-                tintColor={palette.oliveDark}
-              />
-            </Pressable>
-
-            <View style={styles.sectionHeader}>
-              <SettingsText style={styles.sectionTitle}>Categorías</SettingsText>
               <View style={styles.addButtonWrap}>
                 <Image
                   accessible={false}
@@ -316,37 +250,6 @@ export default function SettingsScreen() {
               </View>
             )}
 
-            {message ? (
-              <View style={styles.errorCard}>
-                <SettingsText
-                  accessibilityLiveRegion="polite"
-                  style={styles.errorText}>
-                  {message}
-                </SettingsText>
-              </View>
-            ) : null}
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={isSigningOut}
-              onPress={handleSignOut}
-              style={({ pressed }) => [
-                styles.signOutButton,
-                (pressed || isSigningOut) && styles.buttonPressed,
-              ]}>
-              {isSigningOut ? (
-                <ActivityIndicator color={palette.white} />
-              ) : (
-                <SettingsText style={styles.signOutButtonText}>Cerrar sesión</SettingsText>
-              )}
-              <Image
-                accessible={false}
-                contentFit="contain"
-                pointerEvents="none"
-                source={decorations.branch}
-                style={styles.signOutDecoration}
-              />
-            </Pressable>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -364,7 +267,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: BottomTabInset + Spacing.six,
+    paddingBottom: Spacing.six,
   },
   content: {
     alignSelf: 'center',
@@ -381,64 +284,27 @@ const styles = StyleSheet.create({
   secondaryText: {
     color: palette.muted,
   },
-  titleRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    minHeight: 58,
-  },
   title: {
-    fontSize: 44,
+    fontSize: 36,
     fontWeight: '500',
-    letterSpacing: -0.9,
-    lineHeight: 52,
-  },
-  titleDecoration: {
-    height: 42,
-    marginLeft: 7,
-    opacity: 0.84,
-    transform: [{ rotate: '-9deg' }],
-    width: 65,
-  },
-  walletsCard: {
-    alignItems: 'center',
-    backgroundColor: palette.surface,
-    borderColor: palette.border,
-    borderRadius: 19,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 12,
-    minHeight: 88,
-    padding: 14,
-  },
-  walletsIcon: {
-    alignItems: 'center',
-    backgroundColor: palette.olive,
-    borderRadius: 16,
-    height: 52,
-    justifyContent: 'center',
-    width: 52,
-  },
-  walletsCopy: {
-    flex: 1,
-    gap: 2,
-    minWidth: 0,
-  },
-  walletsTitle: {
-    fontSize: 21,
-    fontWeight: '500',
-    lineHeight: 27,
+    letterSpacing: -0.6,
+    lineHeight: 43,
   },
   sectionHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: Spacing.three,
     justifyContent: 'space-between',
     minHeight: 64,
   },
-  sectionTitle: {
-    fontSize: 28,
-    fontWeight: '500',
-    letterSpacing: -0.4,
-    lineHeight: 35,
+  headerCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 21,
   },
   addButtonWrap: {
     justifyContent: 'center',
@@ -591,41 +457,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     lineHeight: 21,
-  },
-  signOutButton: {
-    alignItems: 'center',
-    backgroundColor: '#CF5D46',
-    borderColor: '#B9513D',
-    borderRadius: 18,
-    borderWidth: 1,
-    elevation: 4,
-    justifyContent: 'center',
-    marginTop: 10,
-    minHeight: 62,
-    overflow: 'hidden',
-    paddingHorizontal: 54,
-    position: 'relative',
-    shadowColor: '#7D392B',
-    shadowOffset: { height: 5, width: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 9,
-  },
-  signOutButtonText: {
-    color: palette.white,
-    fontSize: 20,
-    fontWeight: '500',
-    lineHeight: 27,
-    textAlign: 'center',
-    zIndex: 1,
-  },
-  signOutDecoration: {
-    bottom: -29,
-    height: 91,
-    opacity: 0.65,
-    position: 'absolute',
-    right: 4,
-    transform: [{ rotate: '29deg' }],
-    width: 34,
   },
   buttonPressed: {
     opacity: 0.68,

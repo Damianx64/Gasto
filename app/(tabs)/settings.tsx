@@ -1,1 +1,1 @@
-export { default } from '@/features/categories/screens/manage-categories-screen';
+export { default } from '@/features/settings/screens/settings-screen';
