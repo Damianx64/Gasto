@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import {
@@ -24,6 +25,8 @@ import { createWallet, getWallet, updateWallet } from '../wallets.api';
 const palette = {
   background: '#FBF8F1',
   border: '#E4DAC9',
+  danger: '#B65336',
+  dangerPale: '#FBEEE8',
   debit: '#7D8866',
   ink: '#303A29',
   muted: '#89897F',
@@ -32,6 +35,12 @@ const palette = {
   surface: '#FEFCF7',
   white: '#FFFDF8',
 } as const;
+
+const decorations = {
+  branch: require('../../../../assets/decorations/hojas_icono.webp'),
+  flower: require('../../../../assets/decorations/flores_vertical_2.webp'),
+  leaves: require('../../../../assets/decorations/planta_vertical_1.webp'),
+};
 
 export function WalletEditor({ walletId }: { walletId?: string }) {
   const isEditing = Boolean(walletId);
@@ -80,92 +89,138 @@ export function WalletEditor({ walletId }: { walletId?: string }) {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+      <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.safeArea}>
-          <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-            {isLoading ? (
-              <View style={styles.loadingState}>
-                <ActivityIndicator color={palette.olive} />
-                <ThemedText type="small" style={styles.mutedText}>
-                  Cargando billetera...
-                </ThemedText>
-              </View>
-            ) : (
-              <View style={styles.formCard}>
-                <View style={styles.field}>
-                  <ThemedText style={styles.label}>Nombre</ThemedText>
-                  <TextInput
-                    accessibilityLabel="Nombre de la billetera"
-                    autoCapitalize="sentences"
-                    onChangeText={setName}
-                    placeholder="Ej. Efectivo"
-                    placeholderTextColor={palette.muted}
-                    selectionColor={palette.olive}
-                    style={styles.input}
-                    value={name}
-                  />
+          style={styles.keyboardView}>
+          <ScrollView
+            automaticallyAdjustKeyboardInsets
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+            <View style={styles.content}>
+              {isLoading ? (
+                <View style={styles.loadingState}>
+                  <ActivityIndicator color={palette.olive} />
+                  <ThemedText type="small" style={styles.mutedText}>
+                    Cargando billetera...
+                  </ThemedText>
                 </View>
-
-                <View style={styles.field}>
-                  <ThemedText style={styles.label}>Tipo</ThemedText>
-                  <View style={styles.typeRow}>
-                    {([
-                      { label: 'Efectivo', value: 'cash' as const },
-                      { label: 'Débito', value: 'debit' as const },
-                    ]).map((option) => {
-                      const selected = option.value === type;
-                      return (
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityState={{ selected }}
-                          key={option.value}
-                          onPress={() => setType(option.value)}
-                          style={({ pressed }) => [
-                            styles.typeButton,
-                            selected && styles.typeButtonSelected,
-                            pressed && styles.pressed,
-                          ]}>
-                          <SymbolView
-                            name={
-                              option.value === 'cash'
-                                ? { android: 'payments', ios: 'banknote', web: 'payments' }
-                                : { android: 'credit_card', ios: 'creditcard', web: 'credit_card' }
-                            }
-                            size={24}
-                            tintColor={selected ? palette.white : palette.oliveDark}
-                          />
-                          <ThemedText style={[styles.typeText, selected && styles.typeTextSelected]}>
-                            {option.label}
-                          </ThemedText>
-                        </Pressable>
-                      );
-                    })}
+              ) : (
+                <View style={styles.form}>
+                  <View style={styles.field}>
+                    <ThemedText style={styles.label}>Nombre</ThemedText>
+                    <View style={styles.inputShell}>
+                      <TextInput
+                        accessibilityLabel="Nombre de la billetera"
+                        autoCapitalize="sentences"
+                        onChangeText={setName}
+                        placeholder="Ej. Efectivo"
+                        placeholderTextColor={palette.muted}
+                        selectionColor={palette.olive}
+                        style={styles.input}
+                        value={name}
+                      />
+                      <Image
+                        accessible={false}
+                        contentFit="contain"
+                        pointerEvents="none"
+                        source={decorations.branch}
+                        style={styles.inputDecoration}
+                      />
+                    </View>
                   </View>
+
+                  <View style={styles.field}>
+                    <ThemedText style={styles.label}>Tipo</ThemedText>
+                    <View style={styles.typeRow}>
+                      {([
+                        { label: 'Efectivo', value: 'cash' as const },
+                        { label: 'Débito', value: 'debit' as const },
+                      ]).map((option) => {
+                        const selected = option.value === type;
+                        return (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityState={{ selected }}
+                            key={option.value}
+                            onPress={() => setType(option.value)}
+                            style={({ pressed }) => [
+                              styles.typeButton,
+                              selected && styles.typeButtonSelected,
+                              pressed && styles.pressed,
+                            ]}>
+                            {selected ? (
+                              <Image
+                                accessible={false}
+                                contentFit="contain"
+                                pointerEvents="none"
+                                source={
+                                  option.value === 'cash'
+                                    ? decorations.leaves
+                                    : decorations.flower
+                                }
+                                style={[
+                                  styles.typeDecoration,
+                                  option.value === 'cash'
+                                    ? styles.cashDecoration
+                                    : styles.debitDecoration,
+                                ]}
+                              />
+                            ) : null}
+                            <SymbolView
+                              name={
+                                option.value === 'cash'
+                                  ? { android: 'payments', ios: 'banknote', web: 'payments' }
+                                  : { android: 'credit_card', ios: 'creditcard', web: 'credit_card' }
+                              }
+                              size={24}
+                              tintColor={selected ? palette.white : palette.oliveDark}
+                            />
+                            <ThemedText
+                              style={[styles.typeText, selected && styles.typeTextSelected]}>
+                              {option.label}
+                            </ThemedText>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {message ? (
+                    <View style={styles.errorCard}>
+                      <ThemedText accessibilityLiveRegion="polite" style={styles.errorText}>
+                        {message}
+                      </ThemedText>
+                    </View>
+                  ) : null}
+
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isSubmitting}
+                    onPress={handleSubmit}
+                    style={({ pressed }) => [
+                      styles.saveButton,
+                      (pressed || isSubmitting) && styles.pressed,
+                    ]}>
+                    {isSubmitting ? (
+                      <ActivityIndicator color={palette.white} />
+                    ) : (
+                      <ThemedText style={styles.saveButtonText}>
+                        {isEditing ? 'Guardar cambios' : 'Guardar billetera'}
+                      </ThemedText>
+                    )}
+                    <Image
+                      accessible={false}
+                      contentFit="contain"
+                      pointerEvents="none"
+                      source={decorations.branch}
+                      style={styles.buttonDecoration}
+                    />
+                  </Pressable>
                 </View>
-
-                {message ? (
-                  <View style={styles.errorCard}>
-                    <ThemedText style={styles.errorText}>{message}</ThemedText>
-                  </View>
-                ) : null}
-
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={isSubmitting}
-                  onPress={handleSubmit}
-                  style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
-                  {isSubmitting ? (
-                    <ActivityIndicator color={palette.white} />
-                  ) : (
-                    <ThemedText style={styles.saveButtonText}>
-                      {isEditing ? 'Guardar cambios' : 'Crear billetera'}
-                    </ThemedText>
-                  )}
-                </Pressable>
+              )}
               </View>
-            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -174,62 +229,191 @@ export function WalletEditor({ walletId }: { walletId?: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: palette.background, flex: 1 },
-  safeArea: { flex: 1 },
+  container: {
+    backgroundColor: palette.background,
+    flex: 1,
+  },
+  safeArea: {
+    backgroundColor: palette.background,
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
   scrollContent: {
+    paddingBottom: Spacing.five,
+  },
+  content: {
     alignSelf: 'center',
     maxWidth: 560,
-    padding: Spacing.three,
-    paddingBottom: Spacing.six,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.four,
     width: '100%',
   },
-  loadingState: { alignItems: 'center', gap: 12, justifyContent: 'center', minHeight: 320 },
-  mutedText: { color: palette.muted, fontFamily: Fonts.serif },
-  formCard: {
-    backgroundColor: palette.surface,
-    borderColor: palette.border,
-    borderRadius: 22,
-    borderWidth: 1,
-    gap: Spacing.four,
-    padding: Spacing.four,
+  loadingState: {
+    alignItems: 'center',
+    gap: Spacing.three,
+    justifyContent: 'center',
+    minHeight: 360,
   },
-  field: { gap: 9 },
-  label: { color: palette.ink, fontFamily: Fonts.serif, fontSize: 18 },
-  input: {
-    backgroundColor: palette.white,
-    borderColor: palette.border,
-    borderRadius: 16,
-    borderWidth: 1,
+  mutedText: {
+    color: palette.muted,
+    fontFamily: Fonts.serif,
+  },
+  form: {
+    gap: 20,
+  },
+  field: {
+    gap: 7,
+  },
+  label: {
     color: palette.ink,
     fontFamily: Fonts.serif,
-    fontSize: 18,
-    minHeight: 56,
-    paddingHorizontal: 16,
+    fontSize: 22,
+    fontWeight: '500',
+    lineHeight: 28,
   },
-  typeRow: { flexDirection: 'row', gap: 12 },
-  typeButton: {
-    alignItems: 'center',
+  inputShell: {
+    backgroundColor: palette.surface,
     borderColor: palette.border,
     borderRadius: 17,
     borderWidth: 1,
+    elevation: 2,
+    minHeight: 62,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#6D6659',
+    shadowOffset: { height: 3, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
+  input: {
+    color: palette.ink,
+    fontFamily: Fonts.serif,
+    fontSize: 20,
+    minHeight: 62,
+    paddingHorizontal: 18,
+    paddingRight: 54,
+    position: 'relative',
+    zIndex: 1,
+  },
+  inputDecoration: {
+    bottom: -24,
+    height: 87,
+    opacity: 0.8,
+    position: 'absolute',
+    right: 3,
+    transform: [{ rotate: '32deg' }],
+    width: 31,
+    zIndex: 2,
+  },
+  typeRow: {
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 17,
+    borderWidth: 1,
+    elevation: 2,
+    flexDirection: 'row',
+    minHeight: 64,
+    overflow: 'hidden',
+    padding: 4,
+    shadowColor: '#6D6659',
+    shadowOffset: { height: 3, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
+  typeButton: {
+    alignItems: 'center',
+    borderRadius: 13,
     flex: 1,
     flexDirection: 'row',
     gap: 9,
     justifyContent: 'center',
-    minHeight: 62,
+    minHeight: 54,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  typeButtonSelected: { backgroundColor: palette.debit, borderColor: palette.oliveDark },
-  typeText: { color: palette.ink, fontFamily: Fonts.serif, fontSize: 17 },
-  typeTextSelected: { color: palette.white },
-  errorCard: { backgroundColor: '#FBEEE8', borderRadius: 14, padding: Spacing.three },
-  errorText: { color: '#B65336', fontFamily: Fonts.serif },
+  typeButtonSelected: {
+    backgroundColor: palette.debit,
+  },
+  typeDecoration: {
+    bottom: -32,
+    height: 99,
+    opacity: 0.72,
+    position: 'absolute',
+    width: 42,
+  },
+  cashDecoration: {
+    left: -7,
+    transform: [{ rotate: '12deg' }],
+  },
+  debitDecoration: {
+    right: -5,
+    transform: [{ rotate: '-18deg' }, { scaleX: -1 }],
+  },
+  typeText: {
+    color: palette.ink,
+    fontFamily: Fonts.serif,
+    fontSize: 20,
+    fontWeight: '500',
+    lineHeight: 26,
+    zIndex: 1,
+  },
+  typeTextSelected: {
+    color: palette.white,
+  },
+  errorCard: {
+    backgroundColor: palette.dangerPale,
+    borderColor: '#EAC7B9',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 12,
+  },
+  errorText: {
+    color: palette.danger,
+    fontFamily: Fonts.serif,
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 22,
+  },
   saveButton: {
     alignItems: 'center',
-    backgroundColor: palette.oliveDark,
+    backgroundColor: palette.olive,
+    borderColor: '#717B5D',
     borderRadius: 18,
+    borderWidth: 1,
+    elevation: 4,
     justifyContent: 'center',
-    minHeight: 58,
+    minHeight: 62,
+    overflow: 'hidden',
+    paddingHorizontal: 54,
+    paddingVertical: 13,
+    position: 'relative',
+    shadowColor: '#4D503E',
+    shadowOffset: { height: 5, width: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 9,
   },
-  saveButtonText: { color: palette.white, fontFamily: Fonts.serif, fontSize: 19 },
-  pressed: { opacity: 0.68 },
+  saveButtonText: {
+    color: palette.white,
+    fontFamily: Fonts.serif,
+    fontSize: 20,
+    fontWeight: '500',
+    lineHeight: 27,
+    textAlign: 'center',
+    zIndex: 1,
+  },
+  buttonDecoration: {
+    bottom: -25,
+    height: 92,
+    opacity: 0.84,
+    position: 'absolute',
+    right: 8,
+    transform: [{ rotate: '27deg' }],
+    width: 34,
+  },
+  pressed: {
+    opacity: 0.68,
+  },
 });
