@@ -3,6 +3,8 @@ import { Image } from 'expo-image';
 import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -27,12 +29,14 @@ import { getErrorMessage } from '@/lib/errors';
 
 export default function ReportsScreen() {
   const { revision, syncNow } = useSync();
-  const { selectedWallet, selectedWalletId } = useWalletScope();
+  const { consumeWalletChangeAnimation, selectedWallet, selectedWalletId } = useWalletScope();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const hasLoadedRef = useRef(false);
+  const hasPendingWalletAnimationRef = useRef(false);
+  const walletEntryProgress = useRef(new Animated.Value(1)).current;
 
   const loadReports = useCallback(async (mode: 'initial' | 'refresh' | 'silent') => {
     setErrorMessage('');
@@ -49,13 +53,30 @@ export default function ReportsScreen() {
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      if (hasPendingWalletAnimationRef.current) {
+        hasPendingWalletAnimationRef.current = false;
+        requestAnimationFrame(() => {
+          Animated.timing(walletEntryProgress, {
+            duration: 280,
+            easing: Easing.out(Easing.cubic),
+            toValue: 1,
+            useNativeDriver: true,
+          }).start();
+        });
+      }
     }
-  }, [selectedWalletId, syncNow]);
+  }, [selectedWalletId, syncNow, walletEntryProgress]);
 
   useFocusEffect(
     useCallback(() => {
+      if (consumeWalletChangeAnimation('reports')) {
+        hasPendingWalletAnimationRef.current = true;
+        walletEntryProgress.stopAnimation();
+        walletEntryProgress.setValue(0);
+      }
       loadReports(hasLoadedRef.current ? 'silent' : 'initial');
-    }, [loadReports, revision]),
+      return () => walletEntryProgress.stopAnimation();
+    }, [consumeWalletChangeAnimation, loadReports, revision, walletEntryProgress]),
   );
 
   const reports = useMemo(() => buildReportsSummary(transactions), [transactions]);
@@ -90,8 +111,23 @@ export default function ReportsScreen() {
               </ThemedText>
             </View>
 
-            {isLoading ? (
-              <View style={styles.loadingState}>
+            <Animated.View
+              style={[
+                styles.animatedReports,
+                {
+                  opacity: walletEntryProgress,
+                  transform: [
+                    {
+                      scale: walletEntryProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.985, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}>
+              {isLoading ? (
+                <View style={styles.loadingState}>
                 <ActivityIndicator color={reportPalette.olive} />
                 <ThemedText type="small" style={styles.stateText}>
                   Preparando tus gráficas...
@@ -126,8 +162,9 @@ export default function ReportsScreen() {
                   categories={reports.categories}
                   period={reports.currentMonthLabel}
                 />
-              </>
-            )}
+                </>
+              )}
+            </Animated.View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -154,6 +191,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingTop: 10,
     width: '100%',
+  },
+  animatedReports: {
+    gap: 16,
   },
   header: {
     gap: 2,

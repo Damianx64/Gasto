@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -15,14 +16,19 @@ import type { Wallet } from './types';
 import { listWallets } from './wallets.api';
 
 type WalletScopeContextValue = {
+  consumeWalletChangeAnimation: (screen: 'reports' | 'transactions') => boolean;
   isReady: boolean;
   selectedWallet: Wallet | null;
   selectedWalletId: string | null;
-  setSelectedWalletId: (walletId: string | null) => void;
+  setSelectedWalletId: (
+    walletId: string | null,
+    options?: { animateLinkedScreens?: boolean },
+  ) => void;
   wallets: Wallet[];
 };
 
 const WalletScopeContext = createContext<WalletScopeContextValue>({
+  consumeWalletChangeAnimation: () => false,
   isReady: false,
   selectedWallet: null,
   selectedWalletId: null,
@@ -43,6 +49,8 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [selectedWalletId, setSelectedWalletIdState] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const walletChangeRevisionRef = useRef(0);
+  const consumedWalletChangeRef = useRef({ reports: 0, transactions: 0 });
 
   useEffect(() => {
     let isActive = true;
@@ -51,6 +59,8 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
       setWallets([]);
       setSelectedWalletIdState(null);
       setIsReady(!userId);
+      walletChangeRevisionRef.current = 0;
+      consumedWalletChangeRef.current = { reports: 0, transactions: 0 };
       return () => {
         isActive = false;
       };
@@ -85,10 +95,13 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
   }, [isBootstrapped, revision, userId]);
 
   const setSelectedWalletId = useCallback(
-    (walletId: string | null) => {
+    (walletId: string | null, options?: { animateLinkedScreens?: boolean }) => {
       if (!userId) return;
       const validWalletId =
         walletId && wallets.some((wallet) => wallet.id === walletId) ? walletId : null;
+
+      if (validWalletId === selectedWalletId) return;
+      if (options?.animateLinkedScreens) walletChangeRevisionRef.current += 1;
 
       setSelectedWalletIdState(validWalletId);
       if (validWalletId) {
@@ -97,7 +110,20 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
         void AsyncStorage.removeItem(getSelectionKey(userId));
       }
     },
-    [userId, wallets],
+    [selectedWalletId, userId, wallets],
+  );
+
+  const consumeWalletChangeAnimation = useCallback(
+    (screen: 'reports' | 'transactions') => {
+      const revisionToConsume = walletChangeRevisionRef.current;
+      if (!revisionToConsume || consumedWalletChangeRef.current[screen] >= revisionToConsume) {
+        return false;
+      }
+
+      consumedWalletChangeRef.current[screen] = revisionToConsume;
+      return true;
+    },
+    [],
   );
 
   const selectedWallet = useMemo(
@@ -105,8 +131,22 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
     [selectedWalletId, wallets],
   );
   const value = useMemo(
-    () => ({ isReady, selectedWallet, selectedWalletId, setSelectedWalletId, wallets }),
-    [isReady, selectedWallet, selectedWalletId, setSelectedWalletId, wallets],
+    () => ({
+      consumeWalletChangeAnimation,
+      isReady,
+      selectedWallet,
+      selectedWalletId,
+      setSelectedWalletId,
+      wallets,
+    }),
+    [
+      consumeWalletChangeAnimation,
+      isReady,
+      selectedWallet,
+      selectedWalletId,
+      setSelectedWalletId,
+      wallets,
+    ],
   );
 
   return <WalletScopeContext.Provider value={value}>{children}</WalletScopeContext.Provider>;

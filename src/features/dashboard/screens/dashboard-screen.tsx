@@ -505,7 +505,7 @@ export default function DashboardScreen() {
                     themeColor="textSecondary"
                     numberOfLines={1}
                     style={styles.greetingSubtitleText}>
-                    Pa´eso chambeo
+                    ¡Qué bueno verte por aquí!
                   </DashboardText>
                   <SymbolView
                     name={{ android: 'eco', ios: 'leaf', web: 'eco' }}
@@ -594,7 +594,9 @@ export default function DashboardScreen() {
                           Math.round(event.nativeEvent.contentOffset.x / balanceCardWidth),
                         ),
                       );
-                      setSelectedWalletId(balanceCards[index]?.walletId ?? null);
+                      setSelectedWalletId(balanceCards[index]?.walletId ?? null, {
+                        animateLinkedScreens: true,
+                      });
                     }}
                     pagingEnabled
                     ref={balanceCarouselRef}
@@ -687,7 +689,11 @@ export default function DashboardScreen() {
                               accessibilityState={{ selected: isSelected }}
                               hitSlop={8}
                               key={card.walletId ?? 'general-dot'}
-                              onPress={() => setSelectedWalletId(card.walletId)}
+                              onPress={() =>
+                                setSelectedWalletId(card.walletId, {
+                                  animateLinkedScreens: true,
+                                })
+                              }
                               style={styles.balanceDot}
                             />
                           );

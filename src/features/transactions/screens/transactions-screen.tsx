@@ -4,6 +4,8 @@ import { SymbolView } from 'expo-symbols';
 import { router, type Href, useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Pressable,
   RefreshControl,
   SectionList,
@@ -151,7 +153,7 @@ function groupTransactionsByDay(transactions: TransactionListItem[]) {
 
 export default function TransactionsScreen() {
   const { revision, syncNow } = useSync();
-  const { selectedWallet, selectedWalletId } = useWalletScope();
+  const { consumeWalletChangeAnimation, selectedWallet, selectedWalletId } = useWalletScope();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('month');
   const [isLoading, setIsLoading] = useState(true);
@@ -159,6 +161,8 @@ export default function TransactionsScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const hasLoadedRef = useRef(false);
   const lastTapRef = useRef({ id: '', time: 0 });
+  const hasPendingWalletAnimationRef = useRef(false);
+  const walletEntryProgress = useRef(new Animated.Value(1)).current;
 
   const filteredTransactions = useMemo(
     () => transactions.filter((transaction) => isTransactionInPeriod(transaction, selectedPeriod)),
@@ -185,13 +189,30 @@ export default function TransactionsScreen() {
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      if (hasPendingWalletAnimationRef.current) {
+        hasPendingWalletAnimationRef.current = false;
+        requestAnimationFrame(() => {
+          Animated.timing(walletEntryProgress, {
+            duration: 260,
+            easing: Easing.out(Easing.cubic),
+            toValue: 1,
+            useNativeDriver: true,
+          }).start();
+        });
+      }
     }
-  }, [selectedWalletId, syncNow]);
+  }, [selectedWalletId, syncNow, walletEntryProgress]);
 
   useFocusEffect(
     useCallback(() => {
+      if (consumeWalletChangeAnimation('transactions')) {
+        hasPendingWalletAnimationRef.current = true;
+        walletEntryProgress.stopAnimation();
+        walletEntryProgress.setValue(0);
+      }
       loadTransactions(hasLoadedRef.current ? 'silent' : 'initial');
-    }, [loadTransactions, revision]),
+      return () => walletEntryProgress.stopAnimation();
+    }, [consumeWalletChangeAnimation, loadTransactions, revision, walletEntryProgress]),
   );
 
   function handleTransactionPress(transactionId: string) {
@@ -364,8 +385,23 @@ export default function TransactionsScreen() {
             })}
           </View>
 
-          {isLoading ? (
-            <View style={styles.stateContainer}>
+          <Animated.View
+            style={[
+              styles.animatedResults,
+              {
+                opacity: walletEntryProgress,
+                transform: [
+                  {
+                    scale: walletEntryProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.985, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}>
+            {isLoading ? (
+              <View style={styles.stateContainer}>
               <ActivityIndicator color={palette.olive} />
               <TransactionsText type="small" themeColor="textSecondary">
                 Preparando tus movimientos...
@@ -447,8 +483,9 @@ export default function TransactionsScreen() {
               showsVerticalScrollIndicator={false}
               stickySectionHeadersEnabled={false}
               style={styles.list}
-            />
-          )}
+              />
+            )}
+          </Animated.View>
         </View>
       </SafeAreaView>
     </ThemedView>
@@ -471,6 +508,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingTop: 10,
     width: '100%',
+  },
+  animatedResults: {
+    flex: 1,
   },
   transactionsText: {
     color: palette.ink,
