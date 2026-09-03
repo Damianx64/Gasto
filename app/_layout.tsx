@@ -9,6 +9,7 @@ import {
   useSegments,
 } from 'expo-router';
 import { StyleSheet, useColorScheme, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { useAuthSession } from '@/features/auth/use-auth-session';
 import { FirstSyncScreen } from '@/features/offline/components/first-sync-screen';
@@ -68,13 +69,15 @@ export default function RootLayout() {
   const isAuthenticated = Boolean(userId);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <SyncProvider remoteSessionToken={session?.access_token ?? null} userId={userId}>
-        <WalletScopeProvider userId={userId}>
-          <RootNavigator isAuthenticated={isAuthenticated} isSessionReady={isSessionReady} />
-        </WalletScopeProvider>
-      </SyncProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={styles.container}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <SyncProvider remoteSessionToken={session?.access_token ?? null} userId={userId}>
+          <WalletScopeProvider userId={userId}>
+            <RootNavigator isAuthenticated={isAuthenticated} isSessionReady={isSessionReady} />
+          </WalletScopeProvider>
+        </SyncProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 

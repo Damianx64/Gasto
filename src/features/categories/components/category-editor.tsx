@@ -28,6 +28,7 @@ import {
   type CategoryIconKey,
 } from '../constants';
 import { CategoryIcon } from './category-icon';
+import { CustomColorPickerModal } from './custom-color-picker-modal';
 
 const palette = {
   background: '#FBF8F1',
@@ -68,6 +69,18 @@ function EditorText({ style, themeColor, ...props }: ThemedTextProps) {
   );
 }
 
+function getCustomColorCheckTint(color: string) {
+  const hex = color.replace('#', '').slice(0, 6);
+  if (!/^[\dA-F]{6}$/i.test(hex)) return palette.white;
+
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+
+  return brightness > 160 ? palette.ink : palette.white;
+}
+
 export function CategoryEditor({ categoryId }: CategoryEditorProps) {
   const isEditing = Boolean(categoryId);
   const [name, setName] = useState('');
@@ -77,6 +90,11 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(isEditing);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
+
+  const isCustomColor = !CATEGORY_COLORS.some(
+    (option) => option.toLowerCase() === color.toLowerCase(),
+  );
 
   useEffect(() => {
     async function loadCategory() {
@@ -293,7 +311,7 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
                     <View style={styles.colorPanel}>
                       <View style={styles.colorList}>
                         {CATEGORY_COLORS.map((option) => {
-                          const isSelected = color === option;
+                          const isSelected = color.toLowerCase() === option.toLowerCase();
 
                           return (
                             <Pressable
@@ -319,6 +337,36 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
                             </Pressable>
                           );
                         })}
+                        <Pressable
+                          accessibilityHint="Abre el selector de color"
+                          accessibilityLabel="Elegir color personalizado"
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: isCustomColor }}
+                          onPress={() => setIsColorPickerVisible(true)}
+                          style={({ pressed }) => [
+                            styles.colorButton,
+                            isCustomColor && styles.colorButtonActive,
+                            pressed && styles.buttonPressed,
+                          ]}>
+                          <View
+                            style={[
+                              styles.colorSwatch,
+                              styles.customColorSwatch,
+                              isCustomColor && { backgroundColor: color },
+                            ]}>
+                            <SymbolView
+                              name={
+                                isCustomColor
+                                  ? { android: 'check', ios: 'checkmark', web: 'check' }
+                                  : { android: 'palette', ios: 'paintpalette', web: 'palette' }
+                              }
+                              size={isCustomColor ? 20 : 22}
+                              tintColor={
+                                isCustomColor ? getCustomColorCheckTint(color) : palette.oliveDark
+                              }
+                            />
+                          </View>
+                        </Pressable>
                       </View>
                       <Image
                         accessible={false}
@@ -369,6 +417,13 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      {isColorPickerVisible ? (
+        <CustomColorPickerModal
+          color={color}
+          onApply={setColor}
+          onClose={() => setIsColorPickerVisible(false)}
+        />
+      ) : null}
     </ThemedView>
   );
 }
@@ -595,8 +650,7 @@ const styles = StyleSheet.create({
   colorList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    paddingRight: 34,
+    rowGap: 10,
     zIndex: 1,
   },
   colorButton: {
@@ -604,9 +658,11 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     borderRadius: 24,
     borderWidth: 2,
+    flexBasis: '16.666%',
+    flexGrow: 0,
+    flexShrink: 0,
     height: 48,
     justifyContent: 'center',
-    width: 48,
   },
   colorButtonActive: {
     borderColor: palette.oliveDark,
@@ -619,6 +675,9 @@ const styles = StyleSheet.create({
     height: 38,
     justifyContent: 'center',
     width: 38,
+  },
+  customColorSwatch: {
+    backgroundColor: palette.olivePale,
   },
   colorDecoration: {
     bottom: -39,
