@@ -160,6 +160,11 @@ export async function clearLocalUserData(userId: string) {
     await database.runAsync('DELETE FROM sync_meta WHERE user_id = ?', userId);
   });
   await clearLegacyOfflineCaches(userId);
+  try {
+    await AsyncStorage.removeItem(`wallet-selection:${userId}`);
+  } catch {
+    // Los datos financieros ya se limpiaron; esta preferencia también es de mejor esfuerzo.
+  }
 }
 
 export async function clearLegacyOfflineCaches(userId: string) {
@@ -167,7 +172,6 @@ export async function clearLegacyOfflineCaches(userId: string) {
     await AsyncStorage.multiRemove([
       `categories:${userId}`,
       `transactions:${userId}`,
-      `wallet-selection:${userId}`,
     ]);
   } catch {
     // Las claves antiguas ya no se leen; su limpieza es de mejor esfuerzo.

@@ -5,6 +5,7 @@ import { router, type Href, useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Animated,
+  BackHandler,
   Easing,
   Pressable,
   RefreshControl,
@@ -253,6 +254,19 @@ export default function DashboardScreen() {
     useCallback(() => {
       loadDashboard(hasLoadedRef.current ? 'silent' : 'initial');
     }, [loadDashboard, revision]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (!selectedWalletId) return false;
+
+        setSelectedWalletId(null, { animateLinkedScreens: true });
+        return true;
+      });
+
+      return () => subscription.remove();
+    }, [selectedWalletId, setSelectedWalletId]),
   );
 
   const scopedTransactions = useMemo(
