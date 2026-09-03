@@ -345,28 +345,37 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                     <View style={styles.field}>
                       <EditorText style={styles.fieldLabel}>Billetera</EditorText>
                       <View style={styles.walletList}>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: walletId === '' }}
-                          onPress={() => setWalletId('')}
-                          style={({ pressed }) => [
-                            styles.walletButton,
-                            walletId === '' && styles.walletButtonActive,
-                            pressed && styles.buttonPressed,
-                          ]}>
-                          <View style={[styles.walletIcon, walletId === '' && styles.walletIconActive]}>
-                            <SymbolView
-                              name={{ android: 'wallet', ios: 'wallet.pass', web: 'wallet' }}
-                              size={23}
-                              tintColor={walletId === '' ? palette.white : palette.oliveDark}
-                            />
-                          </View>
-                          <EditorText
-                            numberOfLines={2}
-                            style={[styles.walletButtonText, walletId === '' && styles.selectedText]}>
-                            Sin billetera
-                          </EditorText>
-                        </Pressable>
+                        {wallets.length < 2 ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: walletId === '' }}
+                            onPress={() => setWalletId('')}
+                            style={({ pressed }) => [
+                              styles.walletButton,
+                              walletId === '' && styles.walletButtonActive,
+                              pressed && styles.buttonPressed,
+                            ]}>
+                            <View
+                              style={[
+                                styles.walletIcon,
+                                walletId === '' && styles.walletIconActive,
+                              ]}>
+                              <SymbolView
+                                name={{ android: 'wallet', ios: 'wallet.pass', web: 'wallet' }}
+                                size={23}
+                                tintColor={walletId === '' ? palette.white : palette.oliveDark}
+                              />
+                            </View>
+                            <EditorText
+                              numberOfLines={2}
+                              style={[
+                                styles.walletButtonText,
+                                walletId === '' && styles.selectedText,
+                              ]}>
+                              Sin billetera
+                            </EditorText>
+                          </Pressable>
+                        ) : null}
 
                         {wallets.map((wallet) => {
                           const isSelected = wallet.id === walletId;
