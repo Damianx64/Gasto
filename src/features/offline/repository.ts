@@ -2,7 +2,7 @@ import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { requireOfflineUserId } from '@/features/auth/auth.api';
-import type { Category, CategoryInput } from '@/features/categories/types';
+import type { Category, CategoryInput, CategoryType } from '@/features/categories/types';
 import type {
   TransactionDetails,
   TransactionInput,
@@ -36,6 +36,12 @@ type TransactionListRow = Omit<TransactionRow, 'deleted_at' | 'user_id'> & {
   category_color: string | null;
   category_icon_key: string | null;
   category_name: string | null;
+  destination_wallet_deleted_at: string | null;
+  destination_wallet_name: string | null;
+  destination_wallet_type: WalletRow['type'] | null;
+  source_wallet_deleted_at: string | null;
+  source_wallet_name: string | null;
+  source_wallet_type: WalletRow['type'] | null;
 };
 
 function nextTimestamp(previous?: string | null) {
@@ -359,7 +365,7 @@ export async function deleteLocalWallet(walletId: string) {
     await database.runAsync(
       `UPDATE local_transactions
           SET wallet_id = NULL
-        WHERE user_id = ? AND wallet_id = ?`,
+        WHERE user_id = ? AND wallet_id = ? AND type <> 'transfer'`,
       userId,
       walletId,
     );
@@ -373,17 +379,30 @@ export async function listLocalTransactions(walletId: string | null = null) {
   const userId = await getReadyUserId();
   const database = await getLocalDatabase();
   const rows = await database.getAllAsync<TransactionListRow>(
-    `SELECT t.id, t.category_id, t.wallet_id, t.type, t.amount, t.description, t.transaction_date,
+    `SELECT t.id, t.category_id, t.wallet_id, t.destination_wallet_id,
+            t.type, t.amount, t.description, t.transaction_date,
             t.created_at, t.client_updated_at, t.last_change_id,
             c.name AS category_name, c.color AS category_color,
-            c.icon_key AS category_icon_key
+            c.icon_key AS category_icon_key,
+            source_wallet.name AS source_wallet_name,
+            source_wallet.type AS source_wallet_type,
+            source_wallet.deleted_at AS source_wallet_deleted_at,
+            destination_wallet.name AS destination_wallet_name,
+            destination_wallet.type AS destination_wallet_type,
+            destination_wallet.deleted_at AS destination_wallet_deleted_at
        FROM local_transactions t
        LEFT JOIN local_categories c
          ON c.user_id = t.user_id AND c.id = t.category_id AND c.deleted_at IS NULL
+       LEFT JOIN local_wallets source_wallet
+         ON source_wallet.user_id = t.user_id AND source_wallet.id = t.wallet_id
+       LEFT JOIN local_wallets destination_wallet
+         ON destination_wallet.user_id = t.user_id
+        AND destination_wallet.id = t.destination_wallet_id
        WHERE t.user_id = ? AND t.deleted_at IS NULL
-         AND (? IS NULL OR t.wallet_id = ?)
+         AND (? IS NULL OR t.wallet_id = ? OR t.destination_wallet_id = ?)
        ORDER BY t.transaction_date DESC, t.created_at DESC`,
     userId,
+    walletId,
     walletId,
     walletId,
   );
@@ -398,7 +417,22 @@ export async function listLocalTransactions(walletId: string | null = null) {
         }
       : null,
     description: row.description,
+    destination_wallet: row.destination_wallet_name && row.destination_wallet_type
+      ? {
+          deleted_at: row.destination_wallet_deleted_at,
+          name: row.destination_wallet_name,
+          type: row.destination_wallet_type,
+        }
+      : null,
+    destination_wallet_id: row.destination_wallet_id,
     id: row.id,
+    source_wallet: row.source_wallet_name && row.source_wallet_type
+      ? {
+          deleted_at: row.source_wallet_deleted_at,
+          name: row.source_wallet_name,
+          type: row.source_wallet_type,
+        }
+      : null,
     transaction_date: row.transaction_date,
     type: row.type,
     wallet_id: row.wallet_id,
@@ -425,6 +459,7 @@ export async function getLocalTransactionEditorData(transactionId: string) {
     amount: transaction.amount,
     category_id: transaction.category_id,
     description: transaction.description,
+    destination_wallet_id: transaction.destination_wallet_id,
     transaction_date: transaction.transaction_date,
     type: transaction.type,
     wallet_id: transaction.wallet_id,
@@ -437,7 +472,7 @@ async function normalizeCategoryId(
   database: SQLiteDatabase,
   userId: string,
   categoryId: string,
-  type: TransactionInput['type'],
+  type: CategoryType,
 ) {
   if (!categoryId) return null;
 
@@ -467,6 +502,28 @@ async function normalizeWalletId(
   return wallet?.id ?? null;
 }
 
+async function normalizeTransferWalletIds(
+  database: SQLiteDatabase,
+  userId: string,
+  sourceWalletId: string,
+  destinationWalletId: string,
+) {
+  if (sourceWalletId === destinationWalletId) {
+    throw new Error('La billetera de origen y destino deben ser diferentes.');
+  }
+
+  const [sourceId, destinationId] = await Promise.all([
+    normalizeWalletId(database, userId, sourceWalletId),
+    normalizeWalletId(database, userId, destinationWalletId),
+  ]);
+
+  if (!sourceId || !destinationId) {
+    throw new Error('Selecciona dos billeteras activas para la transferencia.');
+  }
+
+  return { destinationId, sourceId };
+}
+
 export async function createLocalTransaction(input: TransactionInput) {
   const userId = await getReadyUserId();
   const id = Crypto.randomUUID();
@@ -474,17 +531,35 @@ export async function createLocalTransaction(input: TransactionInput) {
   const changedAt = nextTimestamp();
 
   await withLocalTransaction(async (database) => {
-    const categoryId = await normalizeCategoryId(database, userId, input.categoryId, input.type);
-    const walletId = await normalizeWalletId(database, userId, input.walletId);
+    let categoryId: string | null = null;
+    let destinationWalletId: string | null = null;
+    let walletId: string | null = null;
+
+    if (input.type === 'transfer') {
+      const normalized = await normalizeTransferWalletIds(
+        database,
+        userId,
+        input.walletId,
+        input.destinationWalletId,
+      );
+      walletId = normalized.sourceId;
+      destinationWalletId = normalized.destinationId;
+    } else {
+      categoryId = await normalizeCategoryId(database, userId, input.categoryId, input.type);
+      walletId = await normalizeWalletId(database, userId, input.walletId);
+    }
+
     await database.runAsync(
       `INSERT INTO local_transactions (
-        user_id, id, category_id, wallet_id, type, amount, description, transaction_date,
+        user_id, id, category_id, wallet_id, destination_wallet_id,
+        type, amount, description, transaction_date,
         created_at, client_updated_at, last_change_id, deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
       userId,
       id,
       categoryId,
       walletId,
+      destinationWalletId,
       input.type,
       input.amount,
       input.description || null,
@@ -513,17 +588,35 @@ export async function updateLocalTransaction(transactionId: string, input: Trans
 
     if (!current) throw new Error('No se encontró el movimiento.');
 
-    const categoryId = await normalizeCategoryId(database, userId, input.categoryId, input.type);
-    const walletId = await normalizeWalletId(database, userId, input.walletId);
+    let categoryId: string | null = null;
+    let destinationWalletId: string | null = null;
+    let walletId: string | null = null;
+
+    if (input.type === 'transfer') {
+      const normalized = await normalizeTransferWalletIds(
+        database,
+        userId,
+        input.walletId,
+        input.destinationWalletId,
+      );
+      walletId = normalized.sourceId;
+      destinationWalletId = normalized.destinationId;
+    } else {
+      categoryId = await normalizeCategoryId(database, userId, input.categoryId, input.type);
+      walletId = await normalizeWalletId(database, userId, input.walletId);
+    }
+
     const changeId = Crypto.randomUUID();
     const changedAt = nextTimestamp(current.client_updated_at);
     await database.runAsync(
       `UPDATE local_transactions
-          SET category_id = ?, wallet_id = ?, type = ?, amount = ?, description = ?, transaction_date = ?,
+          SET category_id = ?, wallet_id = ?, destination_wallet_id = ?, type = ?,
+              amount = ?, description = ?, transaction_date = ?,
               client_updated_at = ?, last_change_id = ?, deleted_at = NULL
         WHERE user_id = ? AND id = ?`,
       categoryId,
       walletId,
+      destinationWalletId,
       input.type,
       input.amount,
       input.description || null,
@@ -592,6 +685,7 @@ function toTransactionSyncRecord(row: TransactionRow): TransactionSyncRecord {
     created_at: row.created_at,
     deleted_at: row.deleted_at,
     description: row.description,
+    destination_wallet_id: row.destination_wallet_id,
     id: row.id,
     last_change_id: row.last_change_id,
     transaction_date: row.transaction_date,
@@ -731,12 +825,14 @@ async function upsertRemoteTransaction(
 
   await database.runAsync(
     `INSERT INTO local_transactions (
-       user_id, id, category_id, wallet_id, type, amount, description, transaction_date,
+       user_id, id, category_id, wallet_id, destination_wallet_id,
+       type, amount, description, transaction_date,
        created_at, client_updated_at, last_change_id, deleted_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (user_id, id) DO UPDATE SET
        category_id = excluded.category_id,
        wallet_id = excluded.wallet_id,
+       destination_wallet_id = excluded.destination_wallet_id,
        type = excluded.type,
        amount = excluded.amount,
        description = excluded.description,
@@ -749,6 +845,7 @@ async function upsertRemoteTransaction(
     remote.id,
     remote.category_id,
     remote.wallet_id,
+    remote.destination_wallet_id,
     remote.type,
     Number(remote.amount),
     remote.description,

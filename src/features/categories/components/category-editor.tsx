@@ -17,10 +17,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText, type ThemedTextProps } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts, Spacing } from '@/constants/theme';
-import type { TransactionType } from '@/features/transactions/types';
 import { getErrorMessage } from '@/lib/errors';
 
 import { createCategory, getCategory, updateCategory } from '../categories.api';
+import type { CategoryType } from '../types';
 import {
   CATEGORY_COLORS,
   CATEGORY_ICONS_BY_TYPE,
@@ -84,7 +84,7 @@ function getCustomColorCheckTint(color: string) {
 export function CategoryEditor({ categoryId }: CategoryEditorProps) {
   const isEditing = Boolean(categoryId);
   const [name, setName] = useState('');
-  const [type, setType] = useState<TransactionType>('expense');
+  const [type, setType] = useState<CategoryType>('expense');
   const [color, setColor] = useState<string>(CATEGORY_COLORS[0]);
   const [iconKey, setIconKey] = useState<CategoryIconKey | null>(null);
   const [message, setMessage] = useState('');
@@ -97,7 +97,7 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
   );
   const categoryIcons = CATEGORY_ICONS_BY_TYPE[type];
 
-  function handleTypeChange(nextType: TransactionType) {
+  function handleTypeChange(nextType: CategoryType) {
     setType(nextType);
     setIconKey((currentIconKey) =>
       isCategoryIconKeyForType(currentIconKey, nextType) ? currentIconKey : null,

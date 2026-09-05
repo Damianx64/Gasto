@@ -8,7 +8,7 @@ sincronizan con Supabase cuando la red vuelve a estar disponible.
 ## Características
 
 - Registro e inicio de sesión con Supabase Auth.
-- Gestión de ingresos, gastos, billeteras y categorías personalizadas.
+- Gestión de ingresos, gastos, transferencias internas, billeteras y categorías personalizadas.
 - Balance general agregado y alcance global por billetera en Dashboard, Movimientos y Reportes.
 - Dashboard con carrusel de billeteras, actividad reciente y resumen mensual.
 - Reportes y gráficas de distribución de gastos filtrados por el alcance activo.
@@ -92,6 +92,10 @@ volver del segundo plano. El primer inicio de sesión y la descarga inicial requ
 El Balance general no es una fila de la base de datos: es la vista agregada de todos los
 movimientos. Una transacción con `wallet_id = NULL` queda sin billetera y solo aparece dentro
 de ese agregado. La billetera activa se conserva localmente por usuario.
+
+Las transferencias internas se almacenan como un único movimiento entre dos billeteras. No se
+contabilizan como ingreso ni gasto: su efecto es cero en el Balance general, negativo en la
+billetera de origen y positivo en la billetera de destino.
 
 Supabase conserva las eliminaciones como *tombstones* y el RPC autenticado
 `sync_finance_data` resuelve conflictos con una estrategia de último cambio ganador. Cada

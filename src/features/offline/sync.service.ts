@@ -12,7 +12,7 @@ import type {
   TransactionSyncRecord,
   WalletSyncRecord,
 } from './types';
-import { isTransactionType, isWalletType } from './types';
+import { isCategoryType, isTransactionType, isWalletType } from './types';
 
 const activeSynchronizations = new Map<string, Promise<void>>();
 
@@ -36,7 +36,7 @@ function isCategoryRecord(value: unknown): value is CategorySyncRecord {
   return (
     typeof record.id === 'string' &&
     typeof record.name === 'string' &&
-    isTransactionType(record.type) &&
+    isCategoryType(record.type) &&
     typeof record.created_at === 'string' &&
     Number.isFinite(Date.parse(record.created_at)) &&
     typeof record.client_updated_at === 'string' &&
@@ -53,6 +53,8 @@ function isTransactionRecord(value: unknown): value is TransactionSyncRecord {
     isTransactionType(record.type) &&
     (record.category_id === null || typeof record.category_id === 'string') &&
     (record.wallet_id === null || typeof record.wallet_id === 'string') &&
+    (record.destination_wallet_id === null ||
+      typeof record.destination_wallet_id === 'string') &&
     (typeof record.amount === 'number' || typeof record.amount === 'string') &&
     typeof record.transaction_date === 'string' &&
     typeof record.created_at === 'string' &&

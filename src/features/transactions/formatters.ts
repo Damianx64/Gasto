@@ -33,6 +33,34 @@ export function getTransactionCategoryName(transaction: TransactionListItem) {
   return getTransactionCategory(transaction)?.name ?? 'Sin categoría';
 }
 
+export function getTransactionAmount(transaction: TransactionListItem) {
+  const amount = Number(transaction.amount);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+export function getTransactionImpact(
+  transaction: TransactionListItem,
+  walletId: string | null,
+) {
+  const amount = getTransactionAmount(transaction);
+
+  if (transaction.type === 'transfer') {
+    if (!walletId) return 0;
+    if (transaction.wallet_id === walletId) return -amount;
+    if (transaction.destination_wallet_id === walletId) return amount;
+    return 0;
+  }
+
+  return transaction.type === 'income' ? amount : -amount;
+}
+
+export function getTransactionWalletName(
+  wallet: TransactionListItem['source_wallet'] | TransactionListItem['destination_wallet'],
+) {
+  if (!wallet || wallet.deleted_at) return 'Billetera eliminada';
+  return wallet.name;
+}
+
 export function getToday() {
   const today = new Date();
   const year = today.getFullYear();

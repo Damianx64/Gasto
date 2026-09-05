@@ -67,6 +67,8 @@ export function buildReportsSummary(
   let income = 0;
 
   for (const transaction of transactions) {
+    if (transaction.type === 'transfer') continue;
+
     const amount = getAmount(transaction);
     const transactionMonthKey = transaction.transaction_date.slice(0, 7);
 

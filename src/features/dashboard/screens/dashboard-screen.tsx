@@ -25,8 +25,11 @@ import { useSync } from '@/features/offline/sync-context';
 import {
   formatCurrency,
   formatTransactionDate,
+  getTransactionAmount,
   getTransactionCategory,
   getTransactionCategoryName,
+  getTransactionImpact,
+  getTransactionWalletName,
 } from '@/features/transactions/formatters';
 import { listTransactions } from '@/features/transactions/transactions.api';
 import type { TransactionListItem } from '@/features/transactions/types';
@@ -107,15 +110,11 @@ function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function getTransactionAmount(transaction: TransactionListItem) {
-  const amount = Number(transaction.amount);
-  return Number.isFinite(amount) ? amount : 0;
-}
-
 function summarizeMonth(transactions: TransactionListItem[], monthKey: string): MonthSummary {
   return transactions.reduce<MonthSummary>(
     (summary, transaction) => {
       if (!transaction.transaction_date.startsWith(monthKey)) return summary;
+      if (transaction.type === 'transfer') return summary;
 
       const amount = getTransactionAmount(transaction);
 
@@ -272,23 +271,31 @@ export default function DashboardScreen() {
   const scopedTransactions = useMemo(
     () =>
       selectedWalletId
-        ? transactions.filter((transaction) => transaction.wallet_id === selectedWalletId)
+        ? transactions.filter(
+            (transaction) =>
+              transaction.wallet_id === selectedWalletId ||
+              transaction.destination_wallet_id === selectedWalletId,
+          )
         : transactions,
     [selectedWalletId, transactions],
   );
 
   const balanceCards = useMemo<BalanceCardData[]>(() => {
-    const getBalance = (items: TransactionListItem[]) =>
+    const getBalance = (items: TransactionListItem[], walletId: string | null) =>
       items.reduce((balance, transaction) => {
-        const amount = getTransactionAmount(transaction);
-        return balance + (transaction.type === 'income' ? amount : -amount);
+        return balance + getTransactionImpact(transaction, walletId);
       }, 0);
 
     return [
-      { balance: getBalance(transactions), name: 'Balance general', walletId: null },
+      { balance: getBalance(transactions, null), name: 'Balance general', walletId: null },
       ...wallets.map((wallet) => ({
         balance: getBalance(
-          transactions.filter((transaction) => transaction.wallet_id === wallet.id),
+          transactions.filter(
+            (transaction) =>
+              transaction.wallet_id === wallet.id ||
+              transaction.destination_wallet_id === wallet.id,
+          ),
+          wallet.id,
         ),
         name: wallet.name,
         walletId: wallet.id,
@@ -360,7 +367,7 @@ export default function DashboardScreen() {
 
     for (const transaction of scopedTransactions) {
       const amount = getTransactionAmount(transaction);
-      balance += transaction.type === 'income' ? amount : -amount;
+      balance += getTransactionImpact(transaction, selectedWalletId);
 
       if (
         transaction.type !== 'expense' ||
@@ -398,7 +405,7 @@ export default function DashboardScreen() {
       incomeTrend: getTrend(currentSummary.income, previousSummary.income),
       recentTransactions: scopedTransactions.slice(0, 6),
     };
-  }, [scopedTransactions]);
+  }, [scopedTransactions, selectedWalletId]);
 
   const cardColors = {
     backgroundColor: palette.surface,
@@ -900,9 +907,21 @@ export default function DashboardScreen() {
                     {dashboard.recentTransactions.length ? (
                       <View style={styles.transactionsList}>
                       {dashboard.recentTransactions.map((transaction, index) => {
+                        const isTransfer = transaction.type === 'transfer';
                         const isIncome = transaction.type === 'income';
                         const category = getTransactionCategory(transaction);
                         const categoryColor = category?.color || palette.olive;
+                        const impact = getTransactionImpact(transaction, selectedWalletId);
+                        const amountPrefix = isTransfer && !selectedWalletId
+                          ? ''
+                          : impact >= 0
+                            ? '+'
+                            : '-';
+                        const amountColor = isTransfer && !selectedWalletId
+                          ? palette.oliveDark
+                          : impact >= 0
+                            ? palette.olive
+                            : palette.terracotta;
 
                         return (
                           <Pressable
@@ -918,23 +937,41 @@ export default function DashboardScreen() {
                               },
                               pressed && styles.transactionPressed,
                             ]}>
-                            <CategoryIcon
-                              backgroundColor={getSoftCategoryColor(categoryColor)}
-                              iconColor={categoryColor}
-                              iconKey={category?.icon_key}
-                              size={42}
-                              symbolSize={21}
-                            />
+                            {isTransfer ? (
+                              <View style={styles.transferIcon}>
+                                <SymbolView
+                                  name={{
+                                    android: 'swap_horiz',
+                                    ios: 'arrow.left.arrow.right',
+                                    web: 'swap_horiz',
+                                  }}
+                                  size={23}
+                                  tintColor={palette.oliveDark}
+                                />
+                              </View>
+                            ) : (
+                              <CategoryIcon
+                                backgroundColor={getSoftCategoryColor(categoryColor)}
+                                iconColor={categoryColor}
+                                iconKey={category?.icon_key}
+                                size={42}
+                                symbolSize={21}
+                              />
+                            )}
                             <View style={styles.transactionMain}>
                               <DashboardText type="smallBold" numberOfLines={1} style={styles.transactionTitle}>
-                                {transaction.description || getTransactionCategoryName(transaction)}
+                                {transaction.description || (isTransfer
+                                  ? 'Transferencia interna'
+                                  : getTransactionCategoryName(transaction))}
                               </DashboardText>
                               <DashboardText
                                 type="small"
                                 themeColor="textSecondary"
                                 numberOfLines={1}
                                 style={styles.transactionSubtitle}>
-                                {getTransactionCategoryName(transaction)} ·{' '}
+                                {isTransfer
+                                  ? `${getTransactionWalletName(transaction.source_wallet)} → ${getTransactionWalletName(transaction.destination_wallet)}`
+                                  : getTransactionCategoryName(transaction)} ·{' '}
                                 {formatTransactionDate(transaction.transaction_date)}
                               </DashboardText>
                             </View>
@@ -943,9 +980,9 @@ export default function DashboardScreen() {
                               type="smallBold"
                               style={[
                                 styles.transactionAmount,
-                                { color: isIncome ? palette.olive : palette.terracotta },
+                                { color: isTransfer ? amountColor : isIncome ? palette.olive : palette.terracotta },
                               ]}>
-                              {isIncome ? '+' : '-'}
+                              {isTransfer ? amountPrefix : isIncome ? '+' : '-'}
                               {formatCurrency(transaction.amount)}
                             </DashboardText>
 
@@ -1440,6 +1477,14 @@ const styles = StyleSheet.create({
     gap: 10,
     minHeight: 72,
     paddingVertical: 10,
+  },
+  transferIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.olivePale,
+    borderRadius: 21,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
   },
   transactionPressed: {
     opacity: 0.65,

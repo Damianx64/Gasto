@@ -3,7 +3,7 @@ import * as SQLite from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 const DATABASE_NAME = 'gasto-offline.db';
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 
@@ -15,7 +15,8 @@ async function migrateDatabase(database: SQLiteDatabase) {
 
   if (currentVersion >= DATABASE_VERSION) return;
 
-  await database.execAsync(`
+  if (currentVersion < 2) {
+    await database.execAsync(`
     DROP TABLE IF EXISTS sync_outbox;
     DROP TABLE IF EXISTS local_transactions;
     DROP TABLE IF EXISTS local_categories;
@@ -96,7 +97,65 @@ async function migrateDatabase(database: SQLiteDatabase) {
       ON sync_outbox (user_id, queued_at);
 
     PRAGMA user_version = 2;
-  `);
+    `);
+  }
+
+  if (currentVersion < 3) {
+    await database.withExclusiveTransactionAsync(async (transaction) => {
+      await transaction.execAsync(`
+      CREATE TABLE local_transactions_v3 (
+        user_id TEXT NOT NULL,
+        id TEXT NOT NULL,
+        category_id TEXT,
+        wallet_id TEXT,
+        destination_wallet_id TEXT,
+        type TEXT NOT NULL CHECK (type IN ('income', 'expense', 'transfer')),
+        amount REAL NOT NULL,
+        description TEXT,
+        transaction_date TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        client_updated_at TEXT NOT NULL,
+        last_change_id TEXT NOT NULL,
+        deleted_at TEXT,
+        CHECK (
+          (type IN ('income', 'expense') AND destination_wallet_id IS NULL)
+          OR
+          (
+            type = 'transfer'
+            AND category_id IS NULL
+            AND (wallet_id IS NOT NULL OR destination_wallet_id IS NOT NULL)
+            AND wallet_id IS NOT destination_wallet_id
+          )
+        ),
+        PRIMARY KEY (user_id, id)
+      );
+
+      INSERT INTO local_transactions_v3 (
+        user_id, id, category_id, wallet_id, destination_wallet_id, type, amount,
+        description, transaction_date, created_at, client_updated_at, last_change_id, deleted_at
+      )
+      SELECT
+        user_id, id, category_id, wallet_id, NULL, type, amount,
+        description, transaction_date, created_at, client_updated_at, last_change_id, deleted_at
+      FROM local_transactions;
+
+      DROP TABLE local_transactions;
+      ALTER TABLE local_transactions_v3 RENAME TO local_transactions;
+
+      CREATE INDEX local_transactions_active_idx
+        ON local_transactions (user_id, deleted_at, transaction_date, created_at);
+      CREATE INDEX local_transactions_category_idx
+        ON local_transactions (user_id, category_id);
+      CREATE INDEX local_transactions_wallet_idx
+        ON local_transactions (user_id, wallet_id);
+      CREATE INDEX local_transactions_destination_wallet_idx
+        ON local_transactions (user_id, destination_wallet_id)
+        WHERE destination_wallet_id IS NOT NULL;
+
+      PRAGMA user_version = 3;
+      `);
+    });
+  }
 }
 
 export async function getLocalDatabase() {

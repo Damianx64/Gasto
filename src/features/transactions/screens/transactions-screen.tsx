@@ -27,9 +27,11 @@ import {
   formatCurrency,
   getTransactionCategory,
   getTransactionCategoryName,
+  getTransactionImpact,
+  getTransactionWalletName,
 } from '../formatters';
 import { listTransactions } from '../transactions.api';
-import type { TransactionListItem } from '../types';
+import type { TransactionListItem, TransactionWallet } from '../types';
 
 type FilterPeriod = 'today' | 'week' | 'month' | 'year';
 
@@ -85,6 +87,25 @@ function TransactionsText({ style, themeColor, ...props }: ThemedTextProps) {
 
 function getSoftCategoryColor(color?: string | null) {
   return color && /^#[0-9A-F]{6}$/i.test(color) ? `${color}22` : palette.olivePale;
+}
+
+function TransferWalletChip({ wallet }: { wallet: TransactionWallet | null }) {
+  return (
+    <View style={styles.transferWalletChip}>
+      <SymbolView
+        name={
+          wallet?.type === 'cash'
+            ? { android: 'payments', ios: 'banknote', web: 'payments' }
+            : { android: 'account_balance_wallet', ios: 'wallet.pass', web: 'account_balance_wallet' }
+        }
+        size={17}
+        tintColor={palette.oliveDark}
+      />
+      <TransactionsText numberOfLines={1} style={styles.transferWalletChipText}>
+        {getTransactionWalletName(wallet)}
+      </TransactionsText>
+    </View>
+  );
 }
 
 function parseTransactionDate(date: string) {
@@ -228,9 +249,12 @@ export default function TransactionsScreen() {
   }
 
   function renderTransaction({ item, index }: { item: TransactionListItem; index: number }) {
+    const isTransfer = item.type === 'transfer';
     const isIncome = item.type === 'income';
     const category = getTransactionCategory(item);
     const categoryColor = category?.color || palette.olive;
+    const transferImpact = getTransactionImpact(item, selectedWalletId);
+    const transferPrefix = !selectedWalletId ? '' : transferImpact >= 0 ? '+' : '-';
 
     return (
       <Pressable
@@ -247,13 +271,27 @@ export default function TransactionsScreen() {
         />
 
         <View style={styles.iconCluster}>
-          <CategoryIcon
-            backgroundColor={getSoftCategoryColor(categoryColor)}
-            iconColor={categoryColor}
-            iconKey={category?.icon_key}
-            size={54}
-            symbolSize={26}
-          />
+          {isTransfer ? (
+            <View style={styles.transferCategoryIcon}>
+              <SymbolView
+                name={{
+                  android: 'swap_horiz',
+                  ios: 'arrow.left.arrow.right',
+                  web: 'swap_horiz',
+                }}
+                size={29}
+                tintColor={palette.oliveDark}
+              />
+            </View>
+          ) : (
+            <CategoryIcon
+              backgroundColor={getSoftCategoryColor(categoryColor)}
+              iconColor={categoryColor}
+              iconKey={category?.icon_key}
+              size={54}
+              symbolSize={26}
+            />
+          )}
           <Image
             accessible={false}
             contentFit="contain"
@@ -265,14 +303,26 @@ export default function TransactionsScreen() {
 
         <View style={styles.itemMain}>
           <TransactionsText numberOfLines={1} style={styles.itemTitle}>
-            {item.description || getTransactionCategoryName(item)}
+            {item.description || (isTransfer ? 'Transferencia interna' : getTransactionCategoryName(item))}
           </TransactionsText>
-          <TransactionsText
-            numberOfLines={1}
-            themeColor="textSecondary"
-            style={styles.itemSubtitle}>
-            {getTransactionCategoryName(item)}
-          </TransactionsText>
+          {isTransfer ? (
+            <View style={styles.transferDirection}>
+              <TransferWalletChip wallet={item.source_wallet} />
+              <SymbolView
+                name={{ android: 'east', ios: 'arrow.right', web: 'east' }}
+                size={18}
+                tintColor={palette.muted}
+              />
+              <TransferWalletChip wallet={item.destination_wallet} />
+            </View>
+          ) : (
+            <TransactionsText
+              numberOfLines={1}
+              themeColor="textSecondary"
+              style={styles.itemSubtitle}>
+              {getTransactionCategoryName(item)}
+            </TransactionsText>
+          )}
         </View>
 
         <TransactionsText
@@ -281,9 +331,15 @@ export default function TransactionsScreen() {
           numberOfLines={1}
           style={[
             styles.amount,
-            isIncome ? styles.incomeAmount : styles.expenseAmount,
+            isTransfer
+              ? transferImpact < 0
+                ? styles.expenseAmount
+                : styles.incomeAmount
+              : isIncome
+                ? styles.incomeAmount
+                : styles.expenseAmount,
           ]}>
-          {isIncome ? '+' : '-'}
+          {isTransfer ? transferPrefix : isIncome ? '+' : '-'}
           {formatCurrency(item.amount)}
         </TransactionsText>
       </Pressable>
@@ -674,6 +730,14 @@ const styles = StyleSheet.create({
     width: 31,
     zIndex: 2,
   },
+  transferCategoryIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.olivePale,
+    borderRadius: 27,
+    height: 54,
+    justifyContent: 'center',
+    width: 54,
+  },
   itemMain: {
     flex: 1,
     minWidth: 0,
@@ -687,6 +751,29 @@ const styles = StyleSheet.create({
   itemSubtitle: {
     fontSize: 15,
     lineHeight: 21,
+  },
+  transferDirection: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 5,
+    marginTop: 3,
+    maxWidth: '100%',
+  },
+  transferWalletChip: {
+    alignItems: 'center',
+    backgroundColor: palette.olivePale,
+    borderRadius: 13,
+    flexDirection: 'row',
+    flexShrink: 1,
+    gap: 5,
+    maxWidth: '43%',
+    minHeight: 28,
+    paddingHorizontal: 8,
+  },
+  transferWalletChipText: {
+    flexShrink: 1,
+    fontSize: 13,
+    lineHeight: 17,
   },
   amount: {
     fontSize: 18,

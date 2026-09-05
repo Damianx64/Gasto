@@ -37,7 +37,7 @@ import {
   getTransactionEditorData,
   updateTransaction,
 } from '../transactions.api';
-import type { TransactionType } from '../types';
+import type { TransactionInput, TransactionType } from '../types';
 
 const palette = {
   background: '#FBF8F1',
@@ -60,6 +60,8 @@ const decorations = {
   flower: require('../../../../assets/decorations/flores_vertical_2.webp'),
   leaves: require('../../../../assets/decorations/planta_vertical_1.webp'),
 };
+
+const DEFAULT_TRANSFER_DESCRIPTION = 'Transferencia interna';
 
 type TransactionEditorProps = {
   transactionId?: string;
@@ -121,6 +123,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
   const [type, setType] = useState<TransactionType>('expense');
   const [categoryId, setCategoryId] = useState('');
   const [walletId, setWalletId] = useState('');
+  const [destinationWalletId, setDestinationWalletId] = useState('');
   const [description, setDescription] = useState('');
   const [transactionDate, setTransactionDate] = useState(getToday());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -132,11 +135,13 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
   const [message, setMessage] = useState('');
   const hasLoadedEditorRef = useRef(false);
   const initialSelectedWalletIdRef = useRef(selectedWalletId);
+  const hasAutomaticTransferDescriptionRef = useRef(false);
 
   const filteredCategories = useMemo(
     () => categories.filter((category) => category.type === type),
     [categories, type],
   );
+  const cannotCreateTransfer = type === 'transfer' && wallets.length < 2;
 
   useEffect(() => {
     if (!filteredCategories.some((category) => category.id === categoryId)) {
@@ -148,7 +153,13 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
     if (walletId && !wallets.some((wallet) => wallet.id === walletId)) {
       setWalletId('');
     }
-  }, [walletId, wallets]);
+    if (
+      destinationWalletId &&
+      !wallets.some((wallet) => wallet.id === destinationWalletId)
+    ) {
+      setDestinationWalletId('');
+    }
+  }, [destinationWalletId, walletId, wallets]);
 
   useEffect(() => {
     async function loadEditorData() {
@@ -165,9 +176,14 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
           setAmount(formatAmountInput(String(transaction.amount)));
           setType(transaction.type);
           setCategoryId(transaction.category_id ?? '');
-          setDescription(transaction.description ?? '');
+          const loadedDescription = transaction.description ?? '';
+          setDescription(loadedDescription);
+          hasAutomaticTransferDescriptionRef.current =
+            transaction.type === 'transfer' &&
+            loadedDescription === DEFAULT_TRANSFER_DESCRIPTION;
           setTransactionDate(transaction.transaction_date);
           setWalletId(transaction.wallet_id ?? '');
+          setDestinationWalletId(transaction.destination_wallet_id ?? '');
         } else {
           const [loadedCategories, loadedWallets] = await Promise.all([
             listCategories(),
@@ -232,17 +248,44 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
       return;
     }
 
+    if (type === 'transfer') {
+      if (wallets.length < 2) {
+        setMessage('Crea al menos dos billeteras para registrar una transferencia.');
+        return;
+      }
+
+      if (!walletId || !destinationWalletId) {
+        setMessage('Selecciona la billetera de origen y la de destino.');
+        return;
+      }
+
+      if (walletId === destinationWalletId) {
+        setMessage('La billetera de origen y destino deben ser diferentes.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
-      const input = {
+      const baseInput = {
         amount: parsedAmount,
-        categoryId,
         description: description.trim(),
         transactionDate: trimmedDate,
-        type,
-        walletId: walletId || null,
       };
+      const input: TransactionInput = type === 'transfer'
+        ? {
+            ...baseInput,
+            destinationWalletId,
+            type,
+            walletId,
+          }
+        : {
+            ...baseInput,
+            categoryId,
+            type,
+            walletId: walletId || null,
+          };
 
       if (transactionId) {
         await updateTransaction(transactionId, input);
@@ -256,6 +299,30 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function handleTypeChange(nextType: TransactionType) {
+    if (nextType === type) return;
+
+    if (nextType === 'transfer') {
+      if (!description.trim()) {
+        setDescription(DEFAULT_TRANSFER_DESCRIPTION);
+        hasAutomaticTransferDescriptionRef.current = true;
+      }
+      setCategoryId('');
+    } else {
+      if (
+        hasAutomaticTransferDescriptionRef.current &&
+        description === DEFAULT_TRANSFER_DESCRIPTION
+      ) {
+        setDescription('');
+      }
+      hasAutomaticTransferDescriptionRef.current = false;
+      setDestinationWalletId('');
+    }
+
+    setMessage('');
+    setType(nextType);
   }
 
   async function handleDelete() {
@@ -341,7 +408,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                     </View>
                   </View>
 
-                  {wallets.length > 0 ? (
+                  {type !== 'transfer' && wallets.length > 0 ? (
                     <View style={styles.field}>
                       <EditorText style={styles.fieldLabel}>Billetera</EditorText>
                       <View style={styles.walletList}>
@@ -420,7 +487,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                       <Pressable
                         accessibilityRole="button"
                         accessibilityState={{ selected: type === 'expense' }}
-                        onPress={() => setType('expense')}
+                        onPress={() => handleTypeChange('expense')}
                         style={({ pressed }) => [
                           styles.segmentButton,
                           type === 'expense' && styles.segmentButtonActive,
@@ -447,7 +514,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                       <Pressable
                         accessibilityRole="button"
                         accessibilityState={{ selected: type === 'income' }}
-                        onPress={() => setType('income')}
+                        onPress={() => handleTypeChange('income')}
                         style={({ pressed }) => [
                           styles.segmentButton,
                           type === 'income' && styles.segmentButtonActive,
@@ -470,9 +537,161 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                           Ingreso
                         </EditorText>
                       </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: type === 'transfer' }}
+                        onPress={() => handleTypeChange('transfer')}
+                        style={({ pressed }) => [
+                          styles.segmentButton,
+                          type === 'transfer' && styles.segmentButtonActive,
+                          pressed && styles.buttonPressed,
+                        ]}>
+                        <SymbolView
+                          name={{
+                            android: 'swap_horiz',
+                            ios: 'arrow.left.arrow.right',
+                            web: 'swap_horiz',
+                          }}
+                          size={20}
+                          tintColor={type === 'transfer' ? palette.white : palette.oliveDark}
+                        />
+                        <EditorText
+                          numberOfLines={1}
+                          style={[
+                            styles.segmentButtonText,
+                            styles.transferSegmentText,
+                            type === 'transfer' && styles.selectedText,
+                          ]}>
+                          Transferencia
+                        </EditorText>
+                      </Pressable>
                     </View>
                   </View>
 
+                  {type === 'transfer' ? (
+                    wallets.length < 2 ? (
+                      <View style={styles.transferWalletNotice}>
+                        <EditorText style={styles.transferWalletNoticeTitle}>
+                          Necesitas dos billeteras
+                        </EditorText>
+                        <EditorText type="small" themeColor="textSecondary">
+                          Crea otra billetera para elegir un origen y un destino diferentes.
+                        </EditorText>
+                        <Pressable
+                          accessibilityRole="button"
+                          onPress={() => router.push('/wallet/new')}
+                          style={({ pressed }) => [
+                            styles.secondaryButton,
+                            pressed && styles.buttonPressed,
+                          ]}>
+                          <SymbolView
+                            name={{ android: 'add', ios: 'plus', web: 'add' }}
+                            size={18}
+                            tintColor={palette.oliveDark}
+                          />
+                          <EditorText type="smallBold">Crear billetera</EditorText>
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <>
+                        <View style={styles.field}>
+                          <EditorText style={styles.fieldLabel}>Origen</EditorText>
+                          <View style={styles.walletList}>
+                            {wallets.map((wallet) => {
+                              const isSelected = wallet.id === walletId;
+                              const isDisabled = wallet.id === destinationWalletId;
+
+                              return (
+                                <Pressable
+                                  accessibilityLabel={`Billetera de origen ${wallet.name}`}
+                                  accessibilityRole="button"
+                                  accessibilityState={{ disabled: isDisabled, selected: isSelected }}
+                                  disabled={isDisabled}
+                                  key={wallet.id}
+                                  onPress={() => setWalletId(wallet.id)}
+                                  style={({ pressed }) => [
+                                    styles.walletButton,
+                                    isSelected && styles.walletButtonActive,
+                                    isDisabled && styles.walletButtonDisabled,
+                                    pressed && styles.buttonPressed,
+                                  ]}>
+                                  <View style={[styles.walletIcon, isSelected && styles.walletIconActive]}>
+                                    <SymbolView
+                                      name={
+                                        wallet.type === 'cash'
+                                          ? { android: 'payments', ios: 'banknote', web: 'payments' }
+                                          : { android: 'credit_card', ios: 'creditcard', web: 'credit_card' }
+                                      }
+                                      size={23}
+                                      tintColor={isSelected ? palette.white : palette.oliveDark}
+                                    />
+                                  </View>
+                                  <EditorText
+                                    numberOfLines={2}
+                                    style={[styles.walletButtonText, isSelected && styles.selectedText]}>
+                                    {wallet.name}
+                                  </EditorText>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        </View>
+
+                        <View style={styles.transferArrowRow}>
+                          <SymbolView
+                            name={{ android: 'south', ios: 'arrow.down', web: 'south' }}
+                            size={22}
+                            tintColor={palette.oliveDark}
+                          />
+                        </View>
+
+                        <View style={styles.field}>
+                          <EditorText style={styles.fieldLabel}>Destino</EditorText>
+                          <View style={styles.walletList}>
+                            {wallets.map((wallet) => {
+                              const isSelected = wallet.id === destinationWalletId;
+                              const isDisabled = wallet.id === walletId;
+
+                              return (
+                                <Pressable
+                                  accessibilityLabel={`Billetera de destino ${wallet.name}`}
+                                  accessibilityRole="button"
+                                  accessibilityState={{ disabled: isDisabled, selected: isSelected }}
+                                  disabled={isDisabled}
+                                  key={wallet.id}
+                                  onPress={() => setDestinationWalletId(wallet.id)}
+                                  style={({ pressed }) => [
+                                    styles.walletButton,
+                                    isSelected && styles.walletButtonActive,
+                                    isDisabled && styles.walletButtonDisabled,
+                                    pressed && styles.buttonPressed,
+                                  ]}>
+                                  <View style={[styles.walletIcon, isSelected && styles.walletIconActive]}>
+                                    <SymbolView
+                                      name={
+                                        wallet.type === 'cash'
+                                          ? { android: 'payments', ios: 'banknote', web: 'payments' }
+                                          : { android: 'credit_card', ios: 'creditcard', web: 'credit_card' }
+                                      }
+                                      size={23}
+                                      tintColor={isSelected ? palette.white : palette.oliveDark}
+                                    />
+                                  </View>
+                                  <EditorText
+                                    numberOfLines={2}
+                                    style={[styles.walletButtonText, isSelected && styles.selectedText]}>
+                                    {wallet.name}
+                                  </EditorText>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      </>
+                    )
+                  ) : null}
+
+                  {type !== 'transfer' ? (
                   <View style={styles.field}>
                     <EditorText style={styles.fieldLabel}>Categoría</EditorText>
                     <View style={styles.categoryList}>
@@ -544,13 +763,17 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                       })}
                     </View>
                   </View>
+                  ) : null}
 
                   <View style={styles.field}>
                     <EditorText style={styles.fieldLabel}>Descripción</EditorText>
                     <View style={styles.inputShell}>
                       <TextInput
                         accessibilityLabel="Descripción"
-                        onChangeText={setDescription}
+                        onChangeText={(value) => {
+                          hasAutomaticTransferDescriptionRef.current = false;
+                          setDescription(value);
+                        }}
                         placeholder="Opcional"
                         placeholderTextColor={palette.muted}
                         selectionColor={palette.olive}
@@ -637,10 +860,12 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
 
                   <Pressable
                     accessibilityRole="button"
-                    disabled={isSubmitting || isDeleting}
+                    accessibilityState={{ disabled: isSubmitting || isDeleting || cannotCreateTransfer }}
+                    disabled={isSubmitting || isDeleting || cannotCreateTransfer}
                     onPress={handleSubmit}
                     style={({ pressed }) => [
                       styles.primaryButton,
+                      cannotCreateTransfer && styles.buttonDisabled,
                       (pressed || isSubmitting) && styles.buttonPressed,
                     ]}>
                     {isSubmitting ? (
@@ -826,6 +1051,10 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     zIndex: 1,
   },
+  transferSegmentText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
   selectedText: {
     color: palette.white,
   },
@@ -870,6 +1099,9 @@ const styles = StyleSheet.create({
     backgroundColor: palette.olive,
     borderColor: palette.oliveDark,
   },
+  walletButtonDisabled: {
+    opacity: 0.38,
+  },
   walletIcon: {
     alignItems: 'center',
     backgroundColor: palette.olivePale,
@@ -886,6 +1118,36 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     lineHeight: 19,
+  },
+  transferArrowRow: {
+    alignItems: 'center',
+    height: 22,
+    justifyContent: 'center',
+    marginVertical: -4,
+  },
+  transferWalletNotice: {
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 17,
+    borderWidth: 1,
+    gap: 10,
+    padding: Spacing.three,
+  },
+  transferWalletNoticeTitle: {
+    fontSize: 18,
+    fontWeight: '500',
+    lineHeight: 24,
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderColor: palette.olive,
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    minHeight: 38,
+    paddingHorizontal: 14,
   },
   categoryButton: {
     alignItems: 'center',
@@ -1024,6 +1286,9 @@ const styles = StyleSheet.create({
     lineHeight: 27,
     textAlign: 'center',
     zIndex: 1,
+  },
+  buttonDisabled: {
+    opacity: 0.45,
   },
   buttonDecoration: {
     bottom: -25,

@@ -4,7 +4,7 @@
 
 create extension if not exists pgcrypto;
 
-create type public.transaction_type as enum ('income', 'expense');
+create type public.transaction_type as enum ('income', 'expense', 'transfer');
 create type public.wallet_type as enum ('cash', 'debit');
 
 create table public.profiles (
@@ -18,7 +18,7 @@ create table public.categories (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   name text not null,
-  type public.transaction_type not null,
+  type public.transaction_type not null check (type <> 'transfer'),
   color text,
   icon_key text,
   created_at timestamptz not null default now(),
@@ -47,8 +47,9 @@ create table public.transactions (
   user_id uuid not null references auth.users (id) on delete cascade,
   category_id uuid,
   wallet_id uuid,
+  destination_wallet_id uuid,
   type public.transaction_type not null,
-  amount numeric not null,
+  amount numeric not null check (amount > 0),
   description text,
   transaction_date date not null,
   created_at timestamptz not null default now(),
@@ -63,7 +64,22 @@ create table public.transactions (
   constraint transactions_wallet_owner_fkey
     foreign key (wallet_id, user_id)
     references public.wallets (id, user_id)
-    on delete set null (wallet_id)
+    on delete set null (wallet_id),
+  constraint transactions_destination_wallet_owner_fkey
+    foreign key (destination_wallet_id, user_id)
+    references public.wallets (id, user_id)
+    on delete set null (destination_wallet_id),
+  constraint transactions_shape_check
+    check (
+      (type in ('income', 'expense') and destination_wallet_id is null)
+      or
+      (
+        type = 'transfer'
+        and category_id is null
+        and (wallet_id is not null or destination_wallet_id is not null)
+        and wallet_id is distinct from destination_wallet_id
+      )
+    )
 );
 
 create index categories_offline_sync_idx
@@ -86,6 +102,10 @@ create index transactions_category_id_idx
 create index transactions_wallet_id_idx
   on public.transactions (wallet_id, user_id)
   where wallet_id is not null;
+
+create index transactions_destination_wallet_id_idx
+  on public.transactions (destination_wallet_id, user_id)
+  where destination_wallet_id is not null;
 
 alter table public.profiles enable row level security;
 alter table public.categories enable row level security;
@@ -144,6 +164,7 @@ declare
   v_wallet_type public.wallet_type;
   v_category_id uuid;
   v_wallet_id uuid;
+  v_destination_wallet_id uuid;
   v_category_deleted_at timestamptz;
   v_wallet_deleted_at timestamptz;
 begin
@@ -223,6 +244,10 @@ begin
     v_record := v_change -> 'record';
     v_type := (v_record ->> 'type')::public.transaction_type;
 
+    if v_type = 'transfer' then
+      raise exception 'Las categorías solo pueden ser de ingreso o gasto.' using errcode = '22023';
+    end if;
+
     insert into public.categories (
       id,
       user_id,
@@ -273,24 +298,47 @@ begin
     v_type := (v_record ->> 'type')::public.transaction_type;
     v_category_id := null;
     v_wallet_id := null;
+    v_destination_wallet_id := null;
 
-    if nullif(v_record ->> 'category_id', '') is not null then
-      select category.id
-      into v_category_id
-      from public.categories as category
-      where category.id = (v_record ->> 'category_id')::uuid
-        and category.user_id = v_user_id
-        and category.type = v_type
-        and category.deleted_at is null;
-    end if;
-
-    if nullif(v_record ->> 'wallet_id', '') is not null then
+    if v_type = 'transfer' then
       select wallet.id
       into v_wallet_id
       from public.wallets as wallet
       where wallet.id = (v_record ->> 'wallet_id')::uuid
-        and wallet.user_id = v_user_id
-        and wallet.deleted_at is null;
+        and wallet.user_id = v_user_id;
+
+      select wallet.id
+      into v_destination_wallet_id
+      from public.wallets as wallet
+      where wallet.id = (v_record ->> 'destination_wallet_id')::uuid
+        and wallet.user_id = v_user_id;
+
+      if v_wallet_id is null or v_destination_wallet_id is null then
+        raise exception 'La transferencia requiere dos billeteras válidas.' using errcode = '22023';
+      end if;
+
+      if v_wallet_id = v_destination_wallet_id then
+        raise exception 'La billetera de origen y destino deben ser diferentes.' using errcode = '22023';
+      end if;
+    else
+      if nullif(v_record ->> 'category_id', '') is not null then
+        select category.id
+        into v_category_id
+        from public.categories as category
+        where category.id = (v_record ->> 'category_id')::uuid
+          and category.user_id = v_user_id
+          and category.type = v_type
+          and category.deleted_at is null;
+      end if;
+
+      if nullif(v_record ->> 'wallet_id', '') is not null then
+        select wallet.id
+        into v_wallet_id
+        from public.wallets as wallet
+        where wallet.id = (v_record ->> 'wallet_id')::uuid
+          and wallet.user_id = v_user_id
+          and wallet.deleted_at is null;
+      end if;
     end if;
 
     insert into public.transactions (
@@ -298,6 +346,7 @@ begin
       user_id,
       category_id,
       wallet_id,
+      destination_wallet_id,
       type,
       amount,
       description,
@@ -313,6 +362,7 @@ begin
       v_user_id,
       v_category_id,
       v_wallet_id,
+      v_destination_wallet_id,
       v_type,
       (v_record ->> 'amount')::numeric,
       nullif(v_record ->> 'description', ''),
@@ -327,6 +377,7 @@ begin
     set
       category_id = excluded.category_id,
       wallet_id = excluded.wallet_id,
+      destination_wallet_id = excluded.destination_wallet_id,
       type = excluded.type,
       amount = excluded.amount,
       description = excluded.description,
@@ -382,7 +433,8 @@ begin
       update public.transactions
       set wallet_id = null, updated_at = now()
       where user_id = v_user_id
-        and wallet_id = (v_record ->> 'id')::uuid;
+        and wallet_id = (v_record ->> 'id')::uuid
+        and type <> 'transfer';
     end if;
   end loop;
 

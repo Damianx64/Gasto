@@ -76,6 +76,10 @@ export type LocalTransactionListItem = TransactionListItem & {
 };
 
 export function isTransactionType(value: unknown): value is TransactionType {
+  return value === 'income' || value === 'expense' || value === 'transfer';
+}
+
+export function isCategoryType(value: unknown): value is Category['type'] {
   return value === 'income' || value === 'expense';
 }
 
