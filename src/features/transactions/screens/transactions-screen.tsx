@@ -89,9 +89,19 @@ function getSoftCategoryColor(color?: string | null) {
   return color && /^#[0-9A-F]{6}$/i.test(color) ? `${color}22` : palette.olivePale;
 }
 
-function TransferWalletChip({ wallet }: { wallet: TransactionWallet | null }) {
+function TransferWalletChip({
+  tone,
+  wallet,
+}: {
+  tone: 'source' | 'destination';
+  wallet: TransactionWallet | null;
+}) {
   return (
-    <View style={styles.transferWalletChip}>
+    <View
+      style={[
+        styles.transferWalletChip,
+        tone === 'source' && styles.transferWalletChipSource,
+      ]}>
       <SymbolView
         name={
           wallet?.type === 'cash'
@@ -302,46 +312,67 @@ export default function TransactionsScreen() {
         </View>
 
         <View style={styles.itemMain}>
-          <TransactionsText numberOfLines={1} style={styles.itemTitle}>
-            {item.description || (isTransfer ? 'Transferencia interna' : getTransactionCategoryName(item))}
-          </TransactionsText>
           {isTransfer ? (
-            <View style={styles.transferDirection}>
-              <TransferWalletChip wallet={item.source_wallet} />
-              <SymbolView
-                name={{ android: 'east', ios: 'arrow.right', web: 'east' }}
-                size={18}
-                tintColor={palette.muted}
-              />
-              <TransferWalletChip wallet={item.destination_wallet} />
-            </View>
+            <>
+              <View style={styles.transferHeader}>
+                <TransactionsText
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                  numberOfLines={1}
+                  style={[styles.itemTitle, styles.transferTitle]}>
+                  {item.description || 'Transferencia interna'}
+                </TransactionsText>
+                <TransactionsText
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.78}
+                  numberOfLines={1}
+                  style={[
+                    styles.amount,
+                    styles.transferAmount,
+                    transferImpact < 0 ? styles.expenseAmount : styles.incomeAmount,
+                  ]}>
+                  {transferPrefix}
+                  {formatCurrency(item.amount)}
+                </TransactionsText>
+              </View>
+              <View style={styles.transferDirection}>
+                <TransferWalletChip tone="source" wallet={item.source_wallet} />
+                <SymbolView
+                  name={{ android: 'east', ios: 'arrow.right', web: 'east' }}
+                  size={18}
+                  tintColor={palette.muted}
+                />
+                <TransferWalletChip tone="destination" wallet={item.destination_wallet} />
+              </View>
+            </>
           ) : (
-            <TransactionsText
-              numberOfLines={1}
-              themeColor="textSecondary"
-              style={styles.itemSubtitle}>
-              {getTransactionCategoryName(item)}
-            </TransactionsText>
+            <>
+              <TransactionsText numberOfLines={1} style={styles.itemTitle}>
+                {item.description || getTransactionCategoryName(item)}
+              </TransactionsText>
+              <TransactionsText
+                numberOfLines={1}
+                themeColor="textSecondary"
+                style={styles.itemSubtitle}>
+                {getTransactionCategoryName(item)}
+              </TransactionsText>
+            </>
           )}
         </View>
 
-        <TransactionsText
-          adjustsFontSizeToFit
-          minimumFontScale={0.78}
-          numberOfLines={1}
-          style={[
-            styles.amount,
-            isTransfer
-              ? transferImpact < 0
-                ? styles.expenseAmount
-                : styles.incomeAmount
-              : isIncome
-                ? styles.incomeAmount
-                : styles.expenseAmount,
-          ]}>
-          {isTransfer ? transferPrefix : isIncome ? '+' : '-'}
-          {formatCurrency(item.amount)}
-        </TransactionsText>
+        {!isTransfer && (
+          <TransactionsText
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+            numberOfLines={1}
+            style={[
+              styles.amount,
+              isIncome ? styles.incomeAmount : styles.expenseAmount,
+            ]}>
+            {isIncome ? '+' : '-'}
+            {formatCurrency(item.amount)}
+          </TransactionsText>
+        )}
       </Pressable>
     );
   }
@@ -757,7 +788,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     marginTop: 3,
-    maxWidth: '100%',
+    width: '100%',
+  },
+  transferHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    width: '100%',
+  },
+  transferTitle: {
+    flex: 1,
+    minWidth: 0,
   },
   transferWalletChip: {
     alignItems: 'center',
@@ -769,6 +810,9 @@ const styles = StyleSheet.create({
     maxWidth: '43%',
     minHeight: 28,
     paddingHorizontal: 8,
+  },
+  transferWalletChipSource: {
+    backgroundColor: '#F7E3DE',
   },
   transferWalletChipText: {
     flexShrink: 1,
@@ -784,6 +828,10 @@ const styles = StyleSheet.create({
     paddingRight: 13,
     textAlign: 'right',
     zIndex: 1,
+  },
+  transferAmount: {
+    flexShrink: 0,
+    paddingRight: 13,
   },
   incomeAmount: {
     color: palette.oliveDark,
