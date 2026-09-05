@@ -23,8 +23,8 @@ import { getErrorMessage } from '@/lib/errors';
 import { createCategory, getCategory, updateCategory } from '../categories.api';
 import {
   CATEGORY_COLORS,
-  CATEGORY_ICONS,
-  isCategoryIconKey,
+  CATEGORY_ICONS_BY_TYPE,
+  isCategoryIconKeyForType,
   type CategoryIconKey,
 } from '../constants';
 import { CategoryIcon } from './category-icon';
@@ -95,6 +95,14 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
   const isCustomColor = !CATEGORY_COLORS.some(
     (option) => option.toLowerCase() === color.toLowerCase(),
   );
+  const categoryIcons = CATEGORY_ICONS_BY_TYPE[type];
+
+  function handleTypeChange(nextType: TransactionType) {
+    setType(nextType);
+    setIconKey((currentIconKey) =>
+      isCategoryIconKeyForType(currentIconKey, nextType) ? currentIconKey : null,
+    );
+  }
 
   useEffect(() => {
     async function loadCategory() {
@@ -106,7 +114,9 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
         setName(category.name);
         setType(category.type);
         setColor(category.color ?? CATEGORY_COLORS[0]);
-        setIconKey(isCategoryIconKey(category.icon_key) ? category.icon_key : null);
+        setIconKey(
+          isCategoryIconKeyForType(category.icon_key, category.type) ? category.icon_key : null,
+        );
       } catch (error) {
         setMessage(getErrorMessage(error));
       } finally {
@@ -182,7 +192,11 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
                       <TextInput
                         autoCapitalize="words"
                         onChangeText={setName}
-                        placeholder="Comida, transporte, sueldo..."
+                        placeholder={
+                          type === 'expense'
+                            ? 'Comida, transporte, cuidado personal...'
+                            : 'Sueldo, negocio, inversiones...'
+                        }
                         placeholderTextColor={palette.muted}
                         selectionColor={palette.olive}
                         style={styles.input}
@@ -204,7 +218,7 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
                       <Pressable
                         accessibilityRole="button"
                         accessibilityState={{ selected: type === 'expense' }}
-                        onPress={() => setType('expense')}
+                        onPress={() => handleTypeChange('expense')}
                         style={({ pressed }) => [
                           styles.segmentButton,
                           type === 'expense' && styles.expenseSegmentButtonActive,
@@ -231,7 +245,7 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
                       <Pressable
                         accessibilityRole="button"
                         accessibilityState={{ selected: type === 'income' }}
-                        onPress={() => setType('income')}
+                        onPress={() => handleTypeChange('income')}
                         style={({ pressed }) => [
                           styles.segmentButton,
                           type === 'income' && styles.incomeSegmentButtonActive,
@@ -268,7 +282,7 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
                       </EditorText>
                     </View>
                     <View style={styles.iconList}>
-                      {CATEGORY_ICONS.map((option) => {
+                      {categoryIcons.map((option) => {
                         const isSelected = iconKey === option.key;
 
                         return (

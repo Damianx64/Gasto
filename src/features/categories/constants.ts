@@ -13,7 +13,7 @@ export const CATEGORY_COLORS = [
   '#4D5047',
 ] as const;
 
-export const CATEGORY_ICONS = [
+const EXPENSE_CATEGORY_ICONS = [
   {
     key: 'food',
     label: 'Comida',
@@ -40,9 +40,9 @@ export const CATEGORY_ICONS = [
     symbol: { android: 'medical_services', ios: 'cross.case.fill', web: 'medical_services' },
   },
   {
-    key: 'salary',
-    label: 'Sueldo',
-    symbol: { android: 'payments', ios: 'banknote.fill', web: 'payments' },
+    key: 'groceries',
+    label: 'Supermercado',
+    symbol: { android: 'shopping_cart', ios: 'cart.fill', web: 'shopping_cart' },
   },
   {
     key: 'shopping',
@@ -75,9 +75,9 @@ export const CATEGORY_ICONS = [
     symbol: { android: 'brush', ios: 'paintbrush.fill', web: 'brush' },
   },
   {
-    key: 'work',
-    label: 'Trabajo',
-    symbol: { android: 'work', ios: 'briefcase.fill', web: 'work' },
+    key: 'personal_care',
+    label: 'Cuidado personal',
+    symbol: { android: 'spa', ios: 'sparkles', web: 'spa' },
   },
   {
     key: 'travel',
@@ -105,14 +105,91 @@ export const CATEGORY_ICONS = [
     symbol: { android: 'card_giftcard', ios: 'gift.fill', web: 'card_giftcard' },
   },
   {
-    key: 'savings',
-    label: 'Ahorro',
-    symbol: { android: 'savings', ios: 'dollarsign.circle.fill', web: 'savings' },
+    key: 'debts',
+    label: 'Deudas',
+    symbol: { android: 'credit_card', ios: 'creditcard.fill', web: 'credit_card' },
   },
   {
     key: 'other',
     label: 'Otro',
     symbol: { android: 'category', ios: 'tag.fill', web: 'category' },
+  },
+] as const satisfies readonly {
+  key: string;
+  label: string;
+  symbol: { android: AndroidSymbol; ios: SFSymbol; web: AndroidSymbol };
+}[];
+
+const INCOME_CATEGORY_ICONS = [
+  {
+    key: 'salary',
+    label: 'Sueldo',
+    symbol: { android: 'payments', ios: 'banknote.fill', web: 'payments' },
+  },
+  {
+    key: 'work',
+    label: 'Trabajo',
+    symbol: { android: 'work', ios: 'briefcase.fill', web: 'work' },
+  },
+  {
+    key: 'business',
+    label: 'Negocio',
+    symbol: { android: 'storefront', ios: 'storefront.fill', web: 'storefront' },
+  },
+  {
+    key: 'sales',
+    label: 'Ventas',
+    symbol: { android: 'sell', ios: 'tag.fill', web: 'sell' },
+  },
+  {
+    key: 'investments',
+    label: 'Inversiones',
+    symbol: {
+      android: 'trending_up',
+      ios: 'chart.line.uptrend.xyaxis',
+      web: 'trending_up',
+    },
+  },
+  {
+    key: 'bonuses',
+    label: 'Bonos',
+    symbol: { android: 'workspace_premium', ios: 'star.circle.fill', web: 'workspace_premium' },
+  },
+  {
+    key: 'freelance',
+    label: 'Freelance',
+    symbol: { android: 'laptop_mac', ios: 'laptopcomputer', web: 'laptop_mac' },
+  },
+  {
+    key: 'refunds',
+    label: 'Reembolsos',
+    symbol: {
+      android: 'currency_exchange',
+      ios: 'arrow.triangle.2.circlepath.circle.fill',
+      web: 'currency_exchange',
+    },
+  },
+] as const satisfies readonly {
+  key: string;
+  label: string;
+  symbol: { android: AndroidSymbol; ios: SFSymbol; web: AndroidSymbol };
+}[];
+
+export const CATEGORY_ICONS_BY_TYPE = {
+  expense: EXPENSE_CATEGORY_ICONS,
+  income: INCOME_CATEGORY_ICONS,
+} as const;
+
+export const CATEGORY_ICONS = [
+  ...EXPENSE_CATEGORY_ICONS,
+  ...INCOME_CATEGORY_ICONS,
+] as const;
+
+const LEGACY_CATEGORY_ICONS = [
+  {
+    key: 'savings',
+    label: 'Ahorro',
+    symbol: { android: 'savings', ios: 'dollarsign.circle.fill', web: 'savings' },
   },
 ] as const satisfies readonly {
   key: string;
@@ -130,9 +207,17 @@ export function isCategoryIconKey(
   return CATEGORY_ICONS.some((option) => option.key === iconKey);
 }
 
+export function isCategoryIconKeyForType(
+  iconKey: string | null | undefined,
+  type: keyof typeof CATEGORY_ICONS_BY_TYPE,
+): iconKey is CategoryIconKey {
+  return CATEGORY_ICONS_BY_TYPE[type].some((option) => option.key === iconKey);
+}
+
 export function getCategoryIconOption(iconKey?: string | null) {
   return (
     CATEGORY_ICONS.find((option) => option.key === iconKey) ??
+    LEGACY_CATEGORY_ICONS.find((option) => option.key === iconKey) ??
     CATEGORY_ICONS.find((option) => option.key === DEFAULT_CATEGORY_ICON_KEY)!
   );
 }
