@@ -76,6 +76,8 @@ type CategorySummary = {
 type MonthSummary = {
   expenses: number;
   income: number;
+  transfersReceived: number;
+  transfersSent: number;
 };
 
 type Trend = {
@@ -110,13 +112,26 @@ function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function summarizeMonth(transactions: TransactionListItem[], monthKey: string): MonthSummary {
+function summarizeMonth(
+  transactions: TransactionListItem[],
+  monthKey: string,
+  walletId: string | null,
+): MonthSummary {
   return transactions.reduce<MonthSummary>(
     (summary, transaction) => {
       if (!transaction.transaction_date.startsWith(monthKey)) return summary;
-      if (transaction.type === 'transfer') return summary;
 
       const amount = getTransactionAmount(transaction);
+
+      if (transaction.type === 'transfer') {
+        if (walletId && transaction.destination_wallet_id === walletId) {
+          summary.transfersReceived += amount;
+        }
+        if (walletId && transaction.wallet_id === walletId) {
+          summary.transfersSent += amount;
+        }
+        return summary;
+      }
 
       if (transaction.type === 'income') {
         summary.income += amount;
@@ -126,7 +141,7 @@ function summarizeMonth(transactions: TransactionListItem[], monthKey: string): 
 
       return summary;
     },
-    { expenses: 0, income: 0 },
+    { expenses: 0, income: 0, transfersReceived: 0, transfersSent: 0 },
   );
 }
 
@@ -194,11 +209,15 @@ export default function DashboardScreen() {
   const [isSyncDetailsVisible, setIsSyncDetailsVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [balanceCardWidth, setBalanceCardWidth] = useState(0);
+  const [isIncomeDetailsExpanded, setIsIncomeDetailsExpanded] = useState(false);
+  const [isExpenseDetailsExpanded, setIsExpenseDetailsExpanded] = useState(false);
   const hasLoadedRef = useRef(false);
   const hasAnimatedWalletChangeRef = useRef(false);
   const balanceCarouselRef = useRef<ScrollView>(null);
   const balanceScrollX = useRef(new Animated.Value(0)).current;
   const summaryFade = useRef(new Animated.Value(1)).current;
+  const incomeDetailsProgress = useRef(new Animated.Value(0)).current;
+  const expenseDetailsProgress = useRef(new Animated.Value(0)).current;
   const categoriesFade = useRef(new Animated.Value(1)).current;
   const movementsFade = useRef(new Animated.Value(1)).current;
 
@@ -359,8 +378,16 @@ export default function DashboardScreen() {
   const dashboard = useMemo(() => {
     const now = new Date();
     const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const currentSummary = summarizeMonth(scopedTransactions, getMonthKey(now));
-    const previousSummary = summarizeMonth(scopedTransactions, getMonthKey(previousMonth));
+    const currentSummary = summarizeMonth(
+      scopedTransactions,
+      getMonthKey(now),
+      selectedWalletId,
+    );
+    const previousSummary = summarizeMonth(
+      scopedTransactions,
+      getMonthKey(previousMonth),
+      selectedWalletId,
+    );
     const categoryMap = new Map<string, Omit<CategorySummary, 'percentage'>>();
 
     let balance = 0;
@@ -406,6 +433,25 @@ export default function DashboardScreen() {
       recentTransactions: scopedTransactions.slice(0, 6),
     };
   }, [scopedTransactions, selectedWalletId]);
+
+  function toggleSummaryDetails(type: 'expense' | 'income') {
+    const isIncome = type === 'income';
+    const isExpanded = isIncome ? isIncomeDetailsExpanded : isExpenseDetailsExpanded;
+    const progress = isIncome ? incomeDetailsProgress : expenseDetailsProgress;
+
+    if (isIncome) {
+      setIsIncomeDetailsExpanded(!isExpanded);
+    } else {
+      setIsExpenseDetailsExpanded(!isExpanded);
+    }
+
+    Animated.timing(progress, {
+      duration: 230,
+      easing: Easing.out(Easing.cubic),
+      toValue: isExpanded ? 0 : 1,
+      useNativeDriver: false,
+    }).start();
+  }
 
   const cardColors = {
     backgroundColor: palette.surface,
@@ -731,7 +777,24 @@ export default function DashboardScreen() {
                 </View>
 
                 <View style={styles.summaryRow}>
-                  <View style={[styles.summaryCard, styles.incomeCard]}>
+                  <Pressable
+                    accessibilityHint={
+                      selectedWalletId
+                        ? 'Muestra u oculta las transferencias recibidas'
+                        : undefined
+                    }
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      disabled: !selectedWalletId,
+                      expanded: Boolean(selectedWalletId && isIncomeDetailsExpanded),
+                    }}
+                    disabled={!selectedWalletId}
+                    onPress={() => toggleSummaryDetails('income')}
+                    style={({ pressed }) => [
+                      styles.summaryCard,
+                      styles.incomeCard,
+                      pressed && styles.buttonPressed,
+                    ]}>
                     <Image
                       accessible={false}
                       contentFit="contain"
@@ -763,9 +826,53 @@ export default function DashboardScreen() {
                         <TrendLabel trend={dashboard.incomeTrend} />
                       </View>
                     </Animated.View>
-                  </View>
+                    <Animated.View
+                      style={[
+                        styles.transferSummaryDetail,
+                        {
+                          height: selectedWalletId
+                            ? incomeDetailsProgress.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, 54],
+                              })
+                            : 0,
+                          opacity: selectedWalletId ? incomeDetailsProgress : 0,
+                        },
+                      ]}>
+                      <View style={styles.transferSummaryDivider} />
+                      <DashboardText
+                        numberOfLines={1}
+                        themeColor="textSecondary"
+                        style={styles.transferSummaryLabel}>
+                        Transferencias recibidas
+                      </DashboardText>
+                      <DashboardText
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        style={[styles.transferSummaryAmount, styles.incomeAmount]}>
+                        {formatCurrency(dashboard.currentSummary.transfersReceived)}
+                      </DashboardText>
+                    </Animated.View>
+                  </Pressable>
 
-                  <View style={[styles.summaryCard, styles.expenseCard]}>
+                  <Pressable
+                    accessibilityHint={
+                      selectedWalletId
+                        ? 'Muestra u oculta las transferencias enviadas'
+                        : undefined
+                    }
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      disabled: !selectedWalletId,
+                      expanded: Boolean(selectedWalletId && isExpenseDetailsExpanded),
+                    }}
+                    disabled={!selectedWalletId}
+                    onPress={() => toggleSummaryDetails('expense')}
+                    style={({ pressed }) => [
+                      styles.summaryCard,
+                      styles.expenseCard,
+                      pressed && styles.buttonPressed,
+                    ]}>
                     <Image
                       accessible={false}
                       contentFit="contain"
@@ -797,7 +904,34 @@ export default function DashboardScreen() {
                         <TrendLabel inverted trend={dashboard.expenseTrend} />
                       </View>
                     </Animated.View>
-                  </View>
+                    <Animated.View
+                      style={[
+                        styles.transferSummaryDetail,
+                        {
+                          height: selectedWalletId
+                            ? expenseDetailsProgress.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, 54],
+                              })
+                            : 0,
+                          opacity: selectedWalletId ? expenseDetailsProgress : 0,
+                        },
+                      ]}>
+                      <View style={styles.transferSummaryDivider} />
+                      <DashboardText
+                        numberOfLines={1}
+                        themeColor="textSecondary"
+                        style={styles.transferSummaryLabel}>
+                        Transferencias enviadas
+                      </DashboardText>
+                      <DashboardText
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        style={[styles.transferSummaryAmount, styles.expenseAmount]}>
+                        {formatCurrency(dashboard.currentSummary.transfersSent)}
+                      </DashboardText>
+                    </Animated.View>
+                  </Pressable>
                 </View>
 
                 <View style={[styles.sectionCard, cardColors]}>
@@ -1285,6 +1419,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   summaryRow: {
+    alignItems: 'flex-start',
     flexDirection: 'row',
     gap: 12,
   },
@@ -1382,6 +1517,27 @@ const styles = StyleSheet.create({
   trendText: {
     fontSize: 14,
     lineHeight: 18,
+  },
+  transferSummaryDetail: {
+    gap: 3,
+    overflow: 'hidden',
+    zIndex: 1,
+  },
+  transferSummaryDivider: {
+    backgroundColor: palette.border,
+    height: StyleSheet.hairlineWidth,
+    marginBottom: 4,
+    width: '100%',
+  },
+  transferSummaryLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  transferSummaryAmount: {
+    fontSize: 16,
+    fontVariant: ['tabular-nums'],
+    fontWeight: '500',
+    lineHeight: 21,
   },
   sectionCard: {
     borderRadius: 20,
