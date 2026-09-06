@@ -408,79 +408,6 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                     </View>
                   </View>
 
-                  {type !== 'transfer' && wallets.length > 0 ? (
-                    <View style={styles.field}>
-                      <EditorText style={styles.fieldLabel}>Billetera</EditorText>
-                      <View style={styles.walletList}>
-                        {wallets.length < 2 ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: walletId === '' }}
-                            onPress={() => setWalletId('')}
-                            style={({ pressed }) => [
-                              styles.walletButton,
-                              walletId === '' && styles.walletButtonActive,
-                              pressed && styles.buttonPressed,
-                            ]}>
-                            <View
-                              style={[
-                                styles.walletIcon,
-                                walletId === '' && styles.walletIconActive,
-                              ]}>
-                              <SymbolView
-                                name={{ android: 'wallet', ios: 'wallet.pass', web: 'wallet' }}
-                                size={23}
-                                tintColor={walletId === '' ? palette.white : palette.oliveDark}
-                              />
-                            </View>
-                            <EditorText
-                              numberOfLines={2}
-                              style={[
-                                styles.walletButtonText,
-                                walletId === '' && styles.selectedText,
-                              ]}>
-                              Sin billetera
-                            </EditorText>
-                          </Pressable>
-                        ) : null}
-
-                        {wallets.map((wallet) => {
-                          const isSelected = wallet.id === walletId;
-                          return (
-                            <Pressable
-                              accessibilityLabel={`Billetera ${wallet.name}`}
-                              accessibilityRole="button"
-                              accessibilityState={{ selected: isSelected }}
-                              key={wallet.id}
-                              onPress={() => setWalletId(wallet.id)}
-                              style={({ pressed }) => [
-                                styles.walletButton,
-                                isSelected && styles.walletButtonActive,
-                                pressed && styles.buttonPressed,
-                              ]}>
-                              <View style={[styles.walletIcon, isSelected && styles.walletIconActive]}>
-                                <SymbolView
-                                  name={
-                                    wallet.type === 'cash'
-                                      ? { android: 'payments', ios: 'banknote', web: 'payments' }
-                                      : { android: 'credit_card', ios: 'creditcard', web: 'credit_card' }
-                                  }
-                                  size={23}
-                                  tintColor={isSelected ? palette.white : palette.oliveDark}
-                                />
-                              </View>
-                              <EditorText
-                                numberOfLines={2}
-                                style={[styles.walletButtonText, isSelected && styles.selectedText]}>
-                                {wallet.name}
-                              </EditorText>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  ) : null}
-
                   <View style={styles.field}>
                     <EditorText style={styles.fieldLabel}>Tipo</EditorText>
                     <View style={styles.segment}>
@@ -567,6 +494,79 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
                       </Pressable>
                     </View>
                   </View>
+
+                  {type !== 'transfer' && wallets.length > 0 ? (
+                    <View style={styles.field}>
+                      <EditorText style={styles.fieldLabel}>Billetera</EditorText>
+                      <View style={styles.walletList}>
+                        {wallets.length < 2 ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: walletId === '' }}
+                            onPress={() => setWalletId('')}
+                            style={({ pressed }) => [
+                              styles.walletButton,
+                              walletId === '' && styles.walletButtonActive,
+                              pressed && styles.buttonPressed,
+                            ]}>
+                            <View
+                              style={[
+                                styles.walletIcon,
+                                walletId === '' && styles.walletIconActive,
+                              ]}>
+                              <SymbolView
+                                name={{ android: 'wallet', ios: 'wallet.pass', web: 'wallet' }}
+                                size={23}
+                                tintColor={walletId === '' ? palette.white : palette.oliveDark}
+                              />
+                            </View>
+                            <EditorText
+                              numberOfLines={2}
+                              style={[
+                                styles.walletButtonText,
+                                walletId === '' && styles.selectedText,
+                              ]}>
+                              Sin billetera
+                            </EditorText>
+                          </Pressable>
+                        ) : null}
+
+                        {wallets.map((wallet) => {
+                          const isSelected = wallet.id === walletId;
+                          return (
+                            <Pressable
+                              accessibilityLabel={`Billetera ${wallet.name}`}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: isSelected }}
+                              key={wallet.id}
+                              onPress={() => setWalletId(wallet.id)}
+                              style={({ pressed }) => [
+                                styles.walletButton,
+                                isSelected && styles.walletButtonActive,
+                                pressed && styles.buttonPressed,
+                              ]}>
+                              <View style={[styles.walletIcon, isSelected && styles.walletIconActive]}>
+                                <SymbolView
+                                  name={
+                                    wallet.type === 'cash'
+                                      ? { android: 'payments', ios: 'banknote', web: 'payments' }
+                                      : { android: 'credit_card', ios: 'creditcard', web: 'credit_card' }
+                                  }
+                                  size={23}
+                                  tintColor={isSelected ? palette.white : palette.oliveDark}
+                                />
+                              </View>
+                              <EditorText
+                                numberOfLines={2}
+                                style={[styles.walletButtonText, isSelected && styles.selectedText]}>
+                                {wallet.name}
+                              </EditorText>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ) : null}
 
                   {type === 'transfer' ? (
                     wallets.length < 2 ? (
