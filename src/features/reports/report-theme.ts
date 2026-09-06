@@ -16,6 +16,7 @@ export const reportPalette = {
 } as const;
 
 export const reportDecorations = {
+  categoryList: require('../../../assets/decorations/flores_vertical_4.webp'),
   categories: require('../../../assets/decorations/hojas_horizontal_1.webp'),
   comparison: require('../../../assets/decorations/flores_tarjeta_reportes.webp'),
   header: require('../../../assets/decorations/hojas_horizontal_1.webp'),

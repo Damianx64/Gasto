@@ -42,7 +42,9 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
       {maxAmount > 0 ? (
         <View style={styles.chart}>
           {months.map((month, index) => {
-            const height = Math.max((month.amount / maxAmount) * 100, month.amount > 0 ? 4 : 0);
+            const barHeight = month.amount > 0
+              ? Math.max((month.amount / maxAmount) * chartHeight, 7)
+              : 0;
             const isCurrentMonth = index === months.length - 1;
 
             return (
@@ -59,7 +61,7 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
                     style={[
                       styles.barValue,
                       {
-                        bottom: Math.round((height / 100) * chartHeight) + 4,
+                        bottom: Math.round(barHeight) + 4,
                       },
                     ]}
                     type={isCurrentMonth ? 'smallBold' : 'small'}>
@@ -70,7 +72,7 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
                       styles.bar,
                       {
                         backgroundColor: isCurrentMonth ? reportPalette.blue : '#9CA995',
-                        height: `${height}%`,
+                        height: barHeight,
                       },
                     ]}
                   />
@@ -179,11 +181,11 @@ const styles = StyleSheet.create({
   },
   baseline: {
     backgroundColor: reportPalette.border,
-    bottom: 27,
     height: StyleSheet.hairlineWidth,
     left: 0,
     position: 'absolute',
     right: 0,
+    top: chartHeight + 25,
   },
   emptyChart: {
     alignItems: 'center',

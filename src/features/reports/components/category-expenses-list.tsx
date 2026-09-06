@@ -1,10 +1,11 @@
+import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Fonts, Spacing } from '@/constants/theme';
 import { CategoryIcon } from '@/features/categories/components/category-icon';
 import type { CategoryExpense } from '@/features/reports/report-data';
-import { reportPalette } from '@/features/reports/report-theme';
+import { reportDecorations, reportPalette } from '@/features/reports/report-theme';
 import { formatCurrency } from '@/features/transactions/formatters';
 
 import { ReportCard } from './report-card';
@@ -29,6 +30,14 @@ export function CategoryExpensesList({
     <ReportCard
       description={`Detalle de ${period}`}
       title="Todas las categorías">
+      <Image
+        accessible={false}
+        contentFit="contain"
+        pointerEvents="none"
+        source={reportDecorations.categoryList}
+        style={styles.decoration}
+      />
+
       {categoriesWithExpenses.length ? (
         <View style={styles.list}>
           {categoriesWithExpenses.map((category, index) => (
@@ -92,8 +101,18 @@ export function CategoryExpensesList({
 }
 
 const styles = StyleSheet.create({
+  decoration: {
+    height: 110,
+    opacity: 0.52,
+    position: 'absolute',
+    right: -7,
+    top: -5,
+    transform: [{ rotate: '8deg' }],
+    width: 86,
+  },
   list: {
     gap: 0,
+    zIndex: 1,
   },
   row: {
     alignItems: 'center',
@@ -176,6 +195,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 130,
     padding: Spacing.four,
+    zIndex: 1,
   },
   emptyText: {
     color: reportPalette.muted,

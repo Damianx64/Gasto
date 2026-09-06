@@ -104,17 +104,17 @@ export function CategoryExpensesChart({
                   fill={reportPalette.cream}
                   r={chartRadius}
                 />
-                {pieCategories.length === 1 ? (
+                {displayedCategories.length === 1 ? (
                   <Circle
                     cx={chartCenter}
                     cy={chartCenter}
-                    fill={pieCategories[0].color}
+                    fill={displayedCategories[0].color}
                     r={chartRadius}
                     stroke={reportPalette.surface}
                     strokeWidth={3}
                   />
                 ) : (
-                  pieCategories.map((category) => {
+                  displayedCategories.map((category) => {
                     const startAngle = currentAngle;
                     const endAngle = startAngle + (category.amount / total) * 360;
                     currentAngle = endAngle;
