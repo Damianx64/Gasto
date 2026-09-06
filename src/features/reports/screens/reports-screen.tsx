@@ -17,6 +17,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Fonts, Spacing } from '@/constants/theme';
 import { CategoryExpensesChart } from '@/features/reports/components/category-expenses-chart';
+import { CategoryExpensesList } from '@/features/reports/components/category-expenses-list';
 import { IncomeExpenseChart } from '@/features/reports/components/income-expense-chart';
 import { MonthlyExpensesChart } from '@/features/reports/components/monthly-expenses-chart';
 import { buildReportsSummary } from '@/features/reports/report-data';
@@ -162,8 +163,12 @@ export default function ReportsScreen() {
                   categories={reports.categories}
                   period={reports.currentMonthLabel}
                 />
-                </>
-              )}
+                <CategoryExpensesList
+                  categories={reports.categories}
+                  period={reports.currentMonthLabel}
+                />
+              </>
+            )}
             </Animated.View>
           </View>
         </ScrollView>
