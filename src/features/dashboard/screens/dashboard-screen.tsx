@@ -446,8 +446,8 @@ export default function DashboardScreen() {
     }
 
     Animated.timing(progress, {
-      duration: 230,
-      easing: Easing.out(Easing.cubic),
+      duration: 340,
+      easing: Easing.inOut(Easing.cubic),
       toValue: isExpanded ? 0 : 1,
       useNativeDriver: false,
     }).start();
