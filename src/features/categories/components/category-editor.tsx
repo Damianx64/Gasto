@@ -194,8 +194,8 @@ export function CategoryEditor({ categoryId }: CategoryEditorProps) {
                         onChangeText={setName}
                         placeholder={
                           type === 'expense'
-                            ? 'Comida, transporte, cuidado personal...'
-                            : 'Sueldo, negocio, inversiones...'
+                            ? 'Comida, transporte...'
+                            : 'Sueldo, bonos...'
                         }
                         placeholderTextColor={palette.muted}
                         selectionColor={palette.olive}

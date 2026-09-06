@@ -49,7 +49,13 @@ function RootNavigator({ isAuthenticated, isSessionReady }: RootNavigatorProps) 
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="transaction" />
+        <Stack.Screen
+          name="transaction"
+          options={{
+            animation: 'slide_from_bottom',
+            presentation: 'modal',
+          }}
+        />
         <Stack.Screen name="category" />
         <Stack.Screen name="wallet" />
       </Stack>
