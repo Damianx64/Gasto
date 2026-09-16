@@ -35,6 +35,7 @@ import {
   createTransaction,
   deleteTransaction,
   getTransactionEditorData,
+  preloadTransactions,
   updateTransaction,
 } from '../transactions.api';
 import type { TransactionInput, TransactionType } from '../types';
@@ -292,6 +293,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
         router.back();
       } else {
         await createTransaction(input);
+        await preloadTransactions([selectedWalletId]).catch(() => undefined);
         router.dismissTo('/transactions');
       }
     } catch (error) {

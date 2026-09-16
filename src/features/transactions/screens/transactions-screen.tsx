@@ -30,7 +30,7 @@ import {
   getTransactionImpact,
   getTransactionWalletName,
 } from '../formatters';
-import { listTransactions } from '../transactions.api';
+import { getCachedTransactions, listTransactions } from '../transactions.api';
 import type { TransactionListItem, TransactionWallet } from '../types';
 
 type FilterPeriod = 'today' | 'week' | 'month' | 'year';
@@ -185,12 +185,20 @@ function groupTransactionsByDay(transactions: TransactionListItem[]) {
 export default function TransactionsScreen() {
   const { revision, syncNow } = useSync();
   const { consumeWalletChangeAnimation, selectedWallet, selectedWalletId } = useWalletScope();
-  const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
+  const initialTransactionsRef = useRef(getCachedTransactions(selectedWalletId));
+  const [transactions, setTransactions] = useState<TransactionListItem[]>(
+    () => initialTransactionsRef.current ?? [],
+  );
   const [selectedPeriod, setSelectedPeriod] = useState<FilterPeriod>('month');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoadPending, setIsInitialLoadPending] = useState(
+    () => !initialTransactionsRef.current,
+  );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const hasLoadedRef = useRef(false);
+  const hasLoadedRef = useRef(Boolean(initialTransactionsRef.current));
+  const transactionsRef = useRef(initialTransactionsRef.current ?? []);
+  const loadingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTapRef = useRef({ id: '', time: 0 });
   const hasPendingWalletAnimationRef = useRef(false);
   const walletEntryProgress = useRef(new Animated.Value(1)).current;
@@ -208,23 +216,46 @@ export default function TransactionsScreen() {
   const loadTransactions = useCallback(async (mode: 'initial' | 'refresh' | 'silent') => {
     setErrorMessage('');
 
-    if (mode === 'initial') setIsLoading(true);
+    let shouldAnimateResults = false;
+    if (loadingDelayRef.current) clearTimeout(loadingDelayRef.current);
+    if (mode === 'initial') {
+      setIsInitialLoadPending(true);
+      loadingDelayRef.current = setTimeout(() => setIsLoading(true), 180);
+    }
     if (mode === 'refresh') setIsRefreshing(true);
 
     try {
       if (mode === 'refresh') await syncNow();
-      setTransactions(await listTransactions(selectedWalletId));
+      const nextTransactions = await listTransactions(selectedWalletId);
+      const hasChanged = JSON.stringify(transactionsRef.current) !== JSON.stringify(nextTransactions);
+      if (mode === 'initial' || (mode === 'silent' && hasLoadedRef.current && hasChanged)) {
+        walletEntryProgress.stopAnimation();
+        walletEntryProgress.setValue(
+          mode === 'initial' || hasPendingWalletAnimationRef.current ? 0 : 0.55,
+        );
+        shouldAnimateResults = true;
+      }
+      transactionsRef.current = nextTransactions;
+      setTransactions(nextTransactions);
       hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
+      if (loadingDelayRef.current) {
+        clearTimeout(loadingDelayRef.current);
+        loadingDelayRef.current = null;
+      }
       setIsLoading(false);
+      setIsInitialLoadPending(false);
       setIsRefreshing(false);
       if (hasPendingWalletAnimationRef.current) {
         hasPendingWalletAnimationRef.current = false;
+        shouldAnimateResults = true;
+      }
+      if (shouldAnimateResults) {
         requestAnimationFrame(() => {
           Animated.timing(walletEntryProgress, {
-            duration: 260,
+            duration: 300,
             easing: Easing.out(Easing.cubic),
             toValue: 1,
             useNativeDriver: true,
@@ -242,7 +273,13 @@ export default function TransactionsScreen() {
         walletEntryProgress.setValue(0);
       }
       loadTransactions(hasLoadedRef.current ? 'silent' : 'initial');
-      return () => walletEntryProgress.stopAnimation();
+      return () => {
+        if (loadingDelayRef.current) {
+          clearTimeout(loadingDelayRef.current);
+          loadingDelayRef.current = null;
+        }
+        walletEntryProgress.stopAnimation();
+      };
     }, [consumeWalletChangeAnimation, loadTransactions, revision, walletEntryProgress]),
   );
 
@@ -479,6 +516,12 @@ export default function TransactionsScreen() {
                 opacity: walletEntryProgress,
                 transform: [
                   {
+                    translateY: walletEntryProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [6, 0],
+                    }),
+                  },
+                  {
                     scale: walletEntryProgress.interpolate({
                       inputRange: [0, 1],
                       outputRange: [0.985, 1],
@@ -487,7 +530,9 @@ export default function TransactionsScreen() {
                 ],
               },
             ]}>
-            {isLoading ? (
+            {isInitialLoadPending && !isLoading ? (
+              <View style={styles.initialLoadPlaceholder} />
+            ) : isLoading ? (
               <View style={styles.stateContainer}>
               <ActivityIndicator color={palette.olive} />
               <TransactionsText type="small" themeColor="textSecondary">
@@ -838,6 +883,9 @@ const styles = StyleSheet.create({
   },
   expenseAmount: {
     color: palette.terracotta,
+  },
+  initialLoadPlaceholder: {
+    flex: 1,
   },
   stateContainer: {
     alignItems: 'center',
