@@ -217,6 +217,7 @@ export default function DashboardScreen() {
   const [isExpenseDetailsExpanded, setIsExpenseDetailsExpanded] = useState(false);
   const hasLoadedRef = useRef(false);
   const hasAnimatedWalletChangeRef = useRef(false);
+  const transactionsRef = useRef<TransactionListItem[]>([]);
   const balanceCarouselRef = useRef<ScrollView>(null);
   const isDraggingBalanceRef = useRef(false);
   const isDashboardFocusedRef = useRef(false);
@@ -226,6 +227,16 @@ export default function DashboardScreen() {
   const expenseDetailsProgress = useRef(new Animated.Value(0)).current;
   const categoriesFade = useRef(new Animated.Value(1)).current;
   const movementsFade = useRef(new Animated.Value(1)).current;
+  const numbersOpacity = useRef(new Animated.Value(1)).current;
+  const numbersTranslateY = useRef(new Animated.Value(0)).current;
+  const numbersScale = useRef(new Animated.Value(1)).current;
+  const numberTransitionStyle = useMemo(
+    () => ({
+      opacity: numbersOpacity,
+      transform: [{ translateY: numbersTranslateY }, { scale: numbersScale }],
+    }),
+    [numbersOpacity, numbersScale, numbersTranslateY],
+  );
 
   const userName = getUserName(
     session?.user.email ?? offlineAccount?.email ?? undefined,
@@ -256,6 +267,84 @@ export default function DashboardScreen() {
         ? palette.olive
         : '#B9B5AC';
 
+  const replaceTransactions = useCallback(async (
+    nextTransactions: TransactionListItem[],
+    animateChanges: boolean,
+  ) => {
+    const hasChanged = JSON.stringify(transactionsRef.current) !== JSON.stringify(nextTransactions);
+
+    if (!animateChanges || !hasLoadedRef.current || !hasChanged) {
+      numbersOpacity.stopAnimation();
+      numbersTranslateY.stopAnimation();
+      numbersScale.stopAnimation();
+      numbersOpacity.setValue(1);
+      numbersTranslateY.setValue(0);
+      numbersScale.setValue(1);
+      transactionsRef.current = nextTransactions;
+      setTransactions(nextTransactions);
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      numbersOpacity.stopAnimation();
+      numbersTranslateY.stopAnimation();
+      numbersScale.stopAnimation();
+      Animated.parallel([
+        Animated.timing(numbersOpacity, {
+          duration: 180,
+          easing: Easing.bezier(0.4, 0, 1, 1),
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+        Animated.timing(numbersTranslateY, {
+          duration: 180,
+          easing: Easing.inOut(Easing.cubic),
+          toValue: -2,
+          useNativeDriver: true,
+        }),
+        Animated.timing(numbersScale, {
+          duration: 180,
+          easing: Easing.inOut(Easing.cubic),
+          toValue: 0.995,
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (!finished) {
+          resolve();
+          return;
+        }
+
+        numbersOpacity.setValue(0);
+        numbersTranslateY.setValue(3);
+        numbersScale.setValue(0.99);
+        transactionsRef.current = nextTransactions;
+        setTransactions(nextTransactions);
+        requestAnimationFrame(() => {
+          Animated.parallel([
+            Animated.timing(numbersOpacity, {
+              duration: 300,
+              easing: Easing.bezier(0, 0, 0.2, 1),
+              toValue: 1,
+              useNativeDriver: true,
+            }),
+            Animated.timing(numbersTranslateY, {
+              duration: 340,
+              easing: Easing.out(Easing.cubic),
+              toValue: 0,
+              useNativeDriver: true,
+            }),
+            Animated.timing(numbersScale, {
+              duration: 340,
+              easing: Easing.out(Easing.cubic),
+              toValue: 1,
+              useNativeDriver: true,
+            }),
+          ]).start(() => resolve());
+        });
+      });
+    });
+  }, [numbersOpacity, numbersScale, numbersTranslateY]);
+
   const loadDashboard = useCallback(async (mode: 'initial' | 'refresh' | 'silent') => {
     setErrorMessage('');
 
@@ -264,7 +353,7 @@ export default function DashboardScreen() {
 
     try {
       if (mode === 'refresh') await syncNow();
-      setTransactions(await listTransactions());
+      await replaceTransactions(await listTransactions(), mode === 'silent');
       hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -272,7 +361,7 @@ export default function DashboardScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [syncNow]);
+  }, [replaceTransactions, syncNow]);
 
   useFocusEffect(
     useCallback(() => {
@@ -749,12 +838,14 @@ export default function DashboardScreen() {
                               </Pressable>
                             </View>
 
-                            <DashboardText
-                              adjustsFontSizeToFit
-                              numberOfLines={1}
-                              style={styles.balanceAmount}>
-                              {isBalanceVisible ? formatCurrency(card.balance) : '••••••'}
-                            </DashboardText>
+                            <Animated.View style={numberTransitionStyle}>
+                              <DashboardText
+                                adjustsFontSizeToFit
+                                numberOfLines={1}
+                                style={styles.balanceAmount}>
+                                {isBalanceVisible ? formatCurrency(card.balance) : '••••••'}
+                              </DashboardText>
+                            </Animated.View>
 
                             <Pressable
                               accessibilityRole="button"
@@ -850,17 +941,21 @@ export default function DashboardScreen() {
                       </View>
                     </View>
                     <Animated.View style={[styles.summaryData, walletContentFadeStyles.summary]}>
-                      <DashboardText
-                        style={[styles.summaryAmount, styles.incomeAmount]}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit>
-                        {formatCurrency(dashboard.currentSummary.income)}
-                      </DashboardText>
+                      <Animated.View style={numberTransitionStyle}>
+                        <DashboardText
+                          style={[styles.summaryAmount, styles.incomeAmount]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit>
+                          {formatCurrency(dashboard.currentSummary.income)}
+                        </DashboardText>
+                      </Animated.View>
                       <View style={styles.summaryFooter}>
                         <DashboardText type="small" themeColor="textSecondary" style={styles.periodText}>
                           Este mes
                         </DashboardText>
-                        <TrendLabel trend={dashboard.incomeTrend} />
+                        <Animated.View style={numberTransitionStyle}>
+                          <TrendLabel trend={dashboard.incomeTrend} />
+                        </Animated.View>
                       </View>
                     </Animated.View>
                     <Animated.View
@@ -883,12 +978,14 @@ export default function DashboardScreen() {
                         style={styles.transferSummaryLabel}>
                         Transferencias recibidas
                       </DashboardText>
-                      <DashboardText
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        style={[styles.transferSummaryAmount, styles.incomeAmount]}>
-                        {formatCurrency(dashboard.currentSummary.transfersReceived)}
-                      </DashboardText>
+                      <Animated.View style={numberTransitionStyle}>
+                        <DashboardText
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          style={[styles.transferSummaryAmount, styles.incomeAmount]}>
+                          {formatCurrency(dashboard.currentSummary.transfersReceived)}
+                        </DashboardText>
+                      </Animated.View>
                     </Animated.View>
                   </Pressable>
 
@@ -928,17 +1025,21 @@ export default function DashboardScreen() {
                       </View>
                     </View>
                     <Animated.View style={[styles.summaryData, walletContentFadeStyles.summary]}>
-                      <DashboardText
-                        style={[styles.summaryAmount, styles.expenseAmount]}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit>
-                        {formatCurrency(dashboard.currentSummary.expenses)}
-                      </DashboardText>
+                      <Animated.View style={numberTransitionStyle}>
+                        <DashboardText
+                          style={[styles.summaryAmount, styles.expenseAmount]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit>
+                          {formatCurrency(dashboard.currentSummary.expenses)}
+                        </DashboardText>
+                      </Animated.View>
                       <View style={styles.summaryFooter}>
                         <DashboardText type="small" themeColor="textSecondary" style={styles.periodText}>
                           Este mes
                         </DashboardText>
-                        <TrendLabel inverted trend={dashboard.expenseTrend} />
+                        <Animated.View style={numberTransitionStyle}>
+                          <TrendLabel inverted trend={dashboard.expenseTrend} />
+                        </Animated.View>
                       </View>
                     </Animated.View>
                     <Animated.View
@@ -961,12 +1062,14 @@ export default function DashboardScreen() {
                         style={styles.transferSummaryLabel}>
                         Transferencias enviadas
                       </DashboardText>
-                      <DashboardText
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        style={[styles.transferSummaryAmount, styles.expenseAmount]}>
-                        {formatCurrency(dashboard.currentSummary.transfersSent)}
-                      </DashboardText>
+                      <Animated.View style={numberTransitionStyle}>
+                        <DashboardText
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          style={[styles.transferSummaryAmount, styles.expenseAmount]}>
+                          {formatCurrency(dashboard.currentSummary.transfersSent)}
+                        </DashboardText>
+                      </Animated.View>
                     </Animated.View>
                   </Pressable>
                 </View>
@@ -1028,14 +1131,18 @@ export default function DashboardScreen() {
                               style={styles.categoryName}>
                               {category.name}
                             </DashboardText>
-                            <DashboardText type="small" numberOfLines={1} style={styles.categoryAmount}>
-                              {formatCurrency(category.amount)}
-                            </DashboardText>
-                            <DashboardText
-                              type="smallBold"
-                              style={[styles.categoryPercentage, { color: category.color || palette.olive }]}>
-                              {category.percentage.toFixed(0)}%
-                            </DashboardText>
+                            <Animated.View style={numberTransitionStyle}>
+                              <DashboardText type="small" numberOfLines={1} style={styles.categoryAmount}>
+                                {formatCurrency(category.amount)}
+                              </DashboardText>
+                            </Animated.View>
+                            <Animated.View style={numberTransitionStyle}>
+                              <DashboardText
+                                type="smallBold"
+                                style={[styles.categoryPercentage, { color: category.color || palette.olive }]}>
+                                {category.percentage.toFixed(0)}%
+                              </DashboardText>
+                            </Animated.View>
                           </View>
                         ))}
                       </View>
@@ -1147,15 +1254,17 @@ export default function DashboardScreen() {
                               </DashboardText>
                             </View>
 
-                            <DashboardText
-                              type="smallBold"
-                              style={[
-                                styles.transactionAmount,
-                                { color: isTransfer ? amountColor : isIncome ? palette.olive : palette.terracotta },
-                              ]}>
-                              {isTransfer ? amountPrefix : isIncome ? '+' : '-'}
-                              {formatCurrency(transaction.amount)}
-                            </DashboardText>
+                            <Animated.View style={numberTransitionStyle}>
+                              <DashboardText
+                                type="smallBold"
+                                style={[
+                                  styles.transactionAmount,
+                                  { color: isTransfer ? amountColor : isIncome ? palette.olive : palette.terracotta },
+                                ]}>
+                                {isTransfer ? amountPrefix : isIncome ? '+' : '-'}
+                                {formatCurrency(transaction.amount)}
+                              </DashboardText>
+                            </Animated.View>
 
                             <SymbolView
                               name={{
