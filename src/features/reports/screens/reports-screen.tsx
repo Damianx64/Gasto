@@ -20,7 +20,12 @@ import { CategoryExpensesChart } from '@/features/reports/components/category-ex
 import { CategoryExpensesList } from '@/features/reports/components/category-expenses-list';
 import { IncomeExpenseChart } from '@/features/reports/components/income-expense-chart';
 import { MonthlyExpensesChart } from '@/features/reports/components/monthly-expenses-chart';
-import { buildReportsSummary } from '@/features/reports/report-data';
+import { ReportMonthSelector } from '@/features/reports/components/report-month-selector';
+import {
+  buildReportsSummary,
+  getAvailableReportMonths,
+  getReportMonthKey,
+} from '@/features/reports/report-data';
 import { reportDecorations, reportPalette } from '@/features/reports/report-theme';
 import { useSync } from '@/features/offline/sync-context';
 import { useWalletScope } from '@/features/wallets/wallet-scope-context';
@@ -35,6 +40,7 @@ export default function ReportsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [selectedMonthKey, setSelectedMonthKey] = useState(() => getReportMonthKey(new Date()));
   const hasLoadedRef = useRef(false);
   const hasPendingWalletAnimationRef = useRef(false);
   const walletEntryProgress = useRef(new Animated.Value(1)).current;
@@ -47,7 +53,15 @@ export default function ReportsScreen() {
 
     try {
       if (mode === 'refresh') await syncNow();
-      setTransactions(await listTransactions(selectedWalletId));
+      const loadedTransactions = await listTransactions(selectedWalletId);
+      const availableMonths = getAvailableReportMonths(loadedTransactions);
+
+      setTransactions(loadedTransactions);
+      setSelectedMonthKey((currentMonthKey) => (
+        availableMonths.some((month) => month.key === currentMonthKey)
+          ? currentMonthKey
+          : availableMonths[0]?.key ?? getReportMonthKey(new Date())
+      ));
       hasLoadedRef.current = true;
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -80,7 +94,14 @@ export default function ReportsScreen() {
     }, [consumeWalletChangeAnimation, loadReports, revision, walletEntryProgress]),
   );
 
-  const reports = useMemo(() => buildReportsSummary(transactions), [transactions]);
+  const availableMonths = useMemo(
+    () => getAvailableReportMonths(transactions),
+    [transactions],
+  );
+  const reports = useMemo(
+    () => buildReportsSummary(transactions, selectedMonthKey),
+    [selectedMonthKey, transactions],
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -153,12 +174,20 @@ export default function ReportsScreen() {
               </View>
             ) : (
               <>
+                <ReportMonthSelector
+                  months={availableMonths}
+                  onChange={setSelectedMonthKey}
+                  selectedMonthKey={selectedMonthKey}
+                />
                 <IncomeExpenseChart
                   expenses={reports.expenses}
                   income={reports.income}
                   period={reports.currentMonthLabel}
                 />
-                <MonthlyExpensesChart months={reports.monthlyExpenses} />
+                <MonthlyExpensesChart
+                  months={reports.monthlyExpenses}
+                  period={reports.currentMonthLabel}
+                />
                 <CategoryExpensesChart
                   categories={reports.categories}
                   period={reports.currentMonthLabel}

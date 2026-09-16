@@ -17,6 +17,11 @@ export type MonthlyExpense = {
   label: string;
 };
 
+export type ReportMonth = {
+  key: string;
+  label: string;
+};
+
 export type ReportsSummary = {
   categories: CategoryExpense[];
   currentMonthLabel: string;
@@ -40,8 +45,18 @@ function getCategory(transaction: TransactionListItem): TransactionCategory | nu
   return transaction.categories;
 }
 
-function getMonthKey(date: Date) {
+export function getReportMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getMonthDate(monthKey: string) {
+  const [year, month] = monthKey.split('-').map(Number);
+
+  return new Date(year, month - 1, 1);
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function getMonthLabel(date: Date) {
@@ -49,19 +64,55 @@ function getMonthLabel(date: Date) {
     .format(date)
     .replace('.', '');
 
-  return label.charAt(0).toUpperCase() + label.slice(1);
+  return capitalize(label);
+}
+
+function getPeriodLabel(date: Date) {
+  return capitalize(new Intl.DateTimeFormat('es-MX', {
+    month: 'long',
+    year: 'numeric',
+  }).format(date));
+}
+
+export function getAvailableReportMonths(
+  transactions: TransactionListItem[],
+): ReportMonth[] {
+  const monthKeys = new Set<string>();
+
+  for (const transaction of transactions) {
+    if (transaction.type === 'transfer') continue;
+
+    const monthKey = transaction.transaction_date.slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(monthKey)) monthKeys.add(monthKey);
+  }
+
+  return [...monthKeys]
+    .sort((left, right) => right.localeCompare(left))
+    .map((key) => ({
+      key,
+      label: getPeriodLabel(getMonthDate(key)),
+    }));
 }
 
 export function buildReportsSummary(
   transactions: TransactionListItem[],
-  today = new Date(),
+  selectedMonth: Date | string = new Date(),
 ): ReportsSummary {
-  const currentMonthKey = getMonthKey(today);
+  const selectedMonthKey = typeof selectedMonth === 'string'
+    ? selectedMonth
+    : getReportMonthKey(selectedMonth);
+  const selectedMonthDate = getMonthDate(selectedMonthKey);
   const monthDates = Array.from({ length: 6 }, (_, index) => {
     const monthsAgo = 5 - index;
-    return new Date(today.getFullYear(), today.getMonth() - monthsAgo, 1);
+    return new Date(
+      selectedMonthDate.getFullYear(),
+      selectedMonthDate.getMonth() - monthsAgo,
+      1,
+    );
   });
-  const monthlyTotals = new Map(monthDates.map((date) => [getMonthKey(date), 0]));
+  const monthlyTotals = new Map(
+    monthDates.map((date) => [getReportMonthKey(date), 0]),
+  );
   const categoryTotals = new Map<string, Omit<CategoryExpense, 'percentage'>>();
   let expenses = 0;
   let income = 0;
@@ -79,7 +130,7 @@ export function buildReportsSummary(
       );
     }
 
-    if (transactionMonthKey !== currentMonthKey) continue;
+    if (transactionMonthKey !== selectedMonthKey) continue;
 
     if (transaction.type === 'income') {
       income += amount;
@@ -108,14 +159,11 @@ export function buildReportsSummary(
 
   return {
     categories,
-    currentMonthLabel: new Intl.DateTimeFormat('es-MX', {
-      month: 'long',
-      year: 'numeric',
-    }).format(today),
+    currentMonthLabel: getPeriodLabel(selectedMonthDate),
     expenses,
     income,
     monthlyExpenses: monthDates.map((date) => {
-      const key = getMonthKey(date);
+      const key = getReportMonthKey(date);
 
       return {
         amount: monthlyTotals.get(key) ?? 0,

@@ -11,19 +11,25 @@ import { ReportCard } from './report-card';
 
 const chartHeight = 168;
 
-export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
+export function MonthlyExpensesChart({
+  months,
+  period,
+}: {
+  months: MonthlyExpense[];
+  period: string;
+}) {
   const maxAmount = Math.max(...months.map((month) => month.amount), 0);
   const latestMonth = months.at(-1);
 
   return (
     <ReportCard
-      description="Compara tus últimos 6 meses"
+      description={`6 meses hasta ${period}`}
       title="Gastos por mes"
       trailing={
         latestMonth ? (
           <View style={styles.latestAmount}>
             <ThemedText style={styles.latestLabel}>
-              Este mes
+              Mes seleccionado
             </ThemedText>
             <ThemedText style={styles.amount}>
               {formatCurrency(latestMonth.amount)}
@@ -45,7 +51,7 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
             const barHeight = month.amount > 0
               ? Math.max((month.amount / maxAmount) * chartHeight, 7)
               : 0;
-            const isCurrentMonth = index === months.length - 1;
+            const isSelectedMonth = index === months.length - 1;
 
             return (
               <View
@@ -64,21 +70,21 @@ export function MonthlyExpensesChart({ months }: { months: MonthlyExpense[] }) {
                         bottom: Math.round(barHeight) + 4,
                       },
                     ]}
-                    type={isCurrentMonth ? 'smallBold' : 'small'}>
+                    type={isSelectedMonth ? 'smallBold' : 'small'}>
                     {formatCurrency(month.amount)}
                   </ThemedText>
                   <View
                     style={[
                       styles.bar,
                       {
-                        backgroundColor: isCurrentMonth ? reportPalette.blue : '#9CA995',
+                        backgroundColor: isSelectedMonth ? reportPalette.blue : '#9CA995',
                         height: barHeight,
                       },
                     ]}
                   />
                 </View>
                 <ThemedText
-                  style={[styles.monthLabel, isCurrentMonth && styles.currentMonthLabel]}>
+                  style={[styles.monthLabel, isSelectedMonth && styles.selectedMonthLabel]}>
                   {month.label}
                 </ThemedText>
               </View>
@@ -175,7 +181,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
   },
-  currentMonthLabel: {
+  selectedMonthLabel: {
     color: reportPalette.ink,
     fontWeight: '700',
   },

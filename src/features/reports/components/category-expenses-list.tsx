@@ -92,7 +92,7 @@ export function CategoryExpensesList({
       ) : (
         <View style={styles.empty}>
           <ThemedText type="small" style={styles.emptyText}>
-            Tus categorías aparecerán aquí cuando registres un gasto este mes.
+            Tus categorías aparecerán aquí cuando registres un gasto en {period}.
           </ThemedText>
         </View>
       )}

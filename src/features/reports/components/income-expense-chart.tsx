@@ -88,7 +88,7 @@ export function IncomeExpenseChart({
           },
         ]}>
         <ThemedText style={[styles.statusText, { color: statusColor }]}>
-          {hasData ? status : 'Aún no hay movimientos este mes'}
+          {hasData ? status : `Aún no hay movimientos en ${period}`}
         </ThemedText>
       </View>
 
