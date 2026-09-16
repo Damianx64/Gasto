@@ -292,7 +292,7 @@ export function TransactionEditor({ transactionId }: TransactionEditorProps) {
         router.back();
       } else {
         await createTransaction(input);
-        router.replace('/transactions');
+        router.dismissTo('/transactions');
       }
     } catch (error) {
       setMessage(getErrorMessage(error));

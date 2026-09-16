@@ -11,6 +11,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -199,6 +200,7 @@ function TrendLabel({ inverted, trend }: { inverted?: boolean; trend: Trend | nu
 }
 
 export default function DashboardScreen() {
+  const { width: windowWidth } = useWindowDimensions();
   const { offlineAccount, session } = useAuthSession();
   const { connectivity, pendingCount, revision, status, syncNow } = useSync();
   const { selectedWalletId, setSelectedWalletId, wallets } = useWalletScope();
@@ -208,12 +210,16 @@ export default function DashboardScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSyncDetailsVisible, setIsSyncDetailsVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [balanceCardWidth, setBalanceCardWidth] = useState(0);
+  const [balanceCardWidth, setBalanceCardWidth] = useState(() =>
+    Math.max(0, Math.min(windowWidth, 560) - Spacing.three * 2),
+  );
   const [isIncomeDetailsExpanded, setIsIncomeDetailsExpanded] = useState(false);
   const [isExpenseDetailsExpanded, setIsExpenseDetailsExpanded] = useState(false);
   const hasLoadedRef = useRef(false);
   const hasAnimatedWalletChangeRef = useRef(false);
   const balanceCarouselRef = useRef<ScrollView>(null);
+  const isDraggingBalanceRef = useRef(false);
+  const isDashboardFocusedRef = useRef(false);
   const balanceScrollX = useRef(new Animated.Value(0)).current;
   const summaryFade = useRef(new Animated.Value(1)).current;
   const incomeDetailsProgress = useRef(new Animated.Value(0)).current;
@@ -322,19 +328,40 @@ export default function DashboardScreen() {
     ];
   }, [transactions, wallets]);
 
-  useEffect(() => {
-    if (!balanceCardWidth) return;
-    const selectedIndex = Math.max(
-      0,
-      balanceCards.findIndex((card) => card.walletId === selectedWalletId),
-    );
-    balanceScrollX.setValue(selectedIndex * balanceCardWidth);
-    balanceCarouselRef.current?.scrollTo({
-      animated: false,
-      x: selectedIndex * balanceCardWidth,
-      y: 0,
-    });
-  }, [balanceCardWidth, balanceCards, balanceScrollX, selectedWalletId]);
+  const selectedBalanceIndex = selectedWalletId
+    ? Math.max(0, wallets.findIndex((wallet) => wallet.id === selectedWalletId) + 1)
+    : 0;
+  const balanceContentOffset = useMemo(
+    () => ({ x: selectedBalanceIndex * balanceCardWidth, y: 0 }),
+    [balanceCardWidth, selectedBalanceIndex],
+  );
+  useLayoutEffect(() => {
+    if (balanceCardWidth) balanceScrollX.setValue(balanceContentOffset.x);
+  }, [balanceCardWidth, balanceContentOffset.x, balanceScrollX]);
+  const alignBalanceCarousel = useCallback(() => {
+    if (!balanceCardWidth || !isDashboardFocusedRef.current || isDraggingBalanceRef.current) return;
+    const targetX = selectedBalanceIndex * balanceCardWidth;
+    balanceCarouselRef.current?.scrollTo({ animated: false, x: targetX, y: 0 });
+    balanceScrollX.setValue(targetX);
+  }, [balanceCardWidth, balanceScrollX, selectedBalanceIndex]);
+
+  useFocusEffect(
+    useCallback(() => {
+      isDashboardFocusedRef.current = true;
+      isDraggingBalanceRef.current = false;
+      balanceScrollX.setValue(balanceContentOffset.x);
+      const frame = requestAnimationFrame(alignBalanceCarousel);
+      // Android can restore the native scroll offset after the focus callback runs.
+      const settleTimer = setTimeout(alignBalanceCarousel, 450);
+
+      return () => {
+        isDashboardFocusedRef.current = false;
+        cancelAnimationFrame(frame);
+        clearTimeout(settleTimer);
+        isDraggingBalanceRef.current = false;
+      };
+    }, [alignBalanceCarousel, balanceContentOffset.x, balanceScrollX]),
+  );
 
   useLayoutEffect(() => {
     if (!hasAnimatedWalletChangeRef.current) {
@@ -643,17 +670,27 @@ export default function DashboardScreen() {
               <>
                 <View
                   accessibilityLabel="Selector de billetera"
-                  onLayout={(event) => setBalanceCardWidth(event.nativeEvent.layout.width)}
+                  onLayout={(event) => {
+                    setBalanceCardWidth(event.nativeEvent.layout.width);
+                    requestAnimationFrame(alignBalanceCarousel);
+                  }}
                   style={styles.balanceCarousel}>
                   <Animated.ScrollView
+                    contentOffset={balanceContentOffset}
                     horizontal
                     nestedScrollEnabled
-                    onScroll={Animated.event(
-                      [{ nativeEvent: { contentOffset: { x: balanceScrollX } } }],
-                      { useNativeDriver: false },
-                    )}
+                    onContentSizeChange={() => requestAnimationFrame(alignBalanceCarousel)}
+                    onScroll={(event) => {
+                      if (isDraggingBalanceRef.current) {
+                        balanceScrollX.setValue(event.nativeEvent.contentOffset.x);
+                      }
+                    }}
+                    onScrollBeginDrag={() => {
+                      isDraggingBalanceRef.current = true;
+                    }}
                     onMomentumScrollEnd={(event) => {
-                      if (!balanceCardWidth) return;
+                      if (!balanceCardWidth || !isDraggingBalanceRef.current) return;
+                      isDraggingBalanceRef.current = false;
                       const index = Math.max(
                         0,
                         Math.min(
