@@ -17,8 +17,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Fonts, Spacing } from '@/constants/theme';
+import { CustomColorPickerModal } from '@/features/categories/components/custom-color-picker-modal';
 import { getErrorMessage } from '@/lib/errors';
 
+import {
+  DEFAULT_WALLET_COLOR,
+  isWalletColorLight,
+  normalizeWalletColor,
+} from '../constants';
 import type { WalletType } from '../types';
 import { createWallet, getWallet, updateWallet } from '../wallets.api';
 
@@ -32,6 +38,7 @@ const palette = {
   muted: '#89897F',
   olive: '#617149',
   oliveDark: '#4E5C39',
+  olivePale: '#E5E7DB',
   surface: '#FEFCF7',
   white: '#FFFDF8',
 } as const;
@@ -46,9 +53,12 @@ export function WalletEditor({ walletId }: { walletId?: string }) {
   const isEditing = Boolean(walletId);
   const [name, setName] = useState('');
   const [type, setType] = useState<WalletType>('cash');
+  const [color, setColor] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(isEditing);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isColorPickerVisible, setIsColorPickerVisible] = useState(false);
   const [message, setMessage] = useState('');
+  const displayedColor = color ?? DEFAULT_WALLET_COLOR;
 
   useEffect(() => {
     if (!walletId) return;
@@ -58,6 +68,7 @@ export function WalletEditor({ walletId }: { walletId?: string }) {
       .then((wallet) => {
         setName(wallet.name);
         setType(wallet.type);
+        setColor(wallet.color);
       })
       .catch((error) => setMessage(getErrorMessage(error)))
       .finally(() => setIsLoading(false));
@@ -75,9 +86,9 @@ export function WalletEditor({ walletId }: { walletId?: string }) {
     setIsSubmitting(true);
     try {
       if (walletId) {
-        await updateWallet(walletId, { name: trimmedName, type });
+        await updateWallet(walletId, { color, name: trimmedName, type });
       } else {
-        await createWallet({ name: trimmedName, type });
+        await createWallet({ color, name: trimmedName, type });
       }
       router.back();
     } catch (error) {
@@ -187,6 +198,74 @@ export function WalletEditor({ walletId }: { walletId?: string }) {
                     </View>
                   </View>
 
+                  <View style={styles.field}>
+                    <ThemedText style={styles.label}>Color</ThemedText>
+                    <View style={styles.colorRow}>
+                      <Pressable
+                        accessibilityLabel="Usar color verde predeterminado"
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: color === null }}
+                        onPress={() => setColor(null)}
+                        style={({ pressed }) => [
+                          styles.colorButton,
+                          color === null && styles.colorButtonSelected,
+                          pressed && styles.pressed,
+                        ]}>
+                        <View
+                          style={[
+                            styles.colorSwatch,
+                            { backgroundColor: DEFAULT_WALLET_COLOR },
+                          ]}>
+                          {color === null ? (
+                            <SymbolView
+                              name={{ android: 'check', ios: 'checkmark', web: 'check' }}
+                              size={19}
+                              tintColor={palette.white}
+                            />
+                          ) : null}
+                        </View>
+                        <ThemedText style={styles.colorButtonText}>Predeterminado</ThemedText>
+                      </Pressable>
+
+                      <Pressable
+                        accessibilityHint="Abre el selector de color"
+                        accessibilityLabel="Elegir color personalizado"
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: color !== null }}
+                        onPress={() => setIsColorPickerVisible(true)}
+                        style={({ pressed }) => [
+                          styles.colorButton,
+                          color !== null && styles.colorButtonSelected,
+                          pressed && styles.pressed,
+                        ]}>
+                        <View
+                          style={[
+                            styles.colorSwatch,
+                            color === null
+                              ? styles.customColorSwatch
+                              : { backgroundColor: displayedColor },
+                          ]}>
+                          <SymbolView
+                            name={
+                              color === null
+                                ? { android: 'palette', ios: 'paintpalette', web: 'palette' }
+                                : { android: 'check', ios: 'checkmark', web: 'check' }
+                            }
+                            size={color === null ? 21 : 19}
+                            tintColor={
+                              color === null
+                                ? palette.oliveDark
+                                : isWalletColorLight(displayedColor)
+                                  ? palette.ink
+                                  : palette.white
+                            }
+                          />
+                        </View>
+                        <ThemedText style={styles.colorButtonText}>Personalizado</ThemedText>
+                      </Pressable>
+                    </View>
+                  </View>
+
                   {message ? (
                     <View style={styles.errorCard}>
                       <ThemedText accessibilityLiveRegion="polite" style={styles.errorText}>
@@ -220,10 +299,18 @@ export function WalletEditor({ walletId }: { walletId?: string }) {
                   </Pressable>
                 </View>
               )}
-              </View>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      {isColorPickerVisible ? (
+        <CustomColorPickerModal
+          color={displayedColor}
+          onApply={(nextColor) => setColor(normalizeWalletColor(nextColor))}
+          onClose={() => setIsColorPickerVisible(false)}
+          subtitle="Elige el tono para tu billetera"
+        />
+      ) : null}
     </ThemedView>
   );
 }
@@ -361,6 +448,45 @@ const styles = StyleSheet.create({
   },
   typeTextSelected: {
     color: palette.white,
+  },
+  colorRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  colorButton: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 17,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 10,
+    minHeight: 64,
+    paddingHorizontal: 13,
+  },
+  colorButtonSelected: {
+    borderColor: palette.oliveDark,
+    borderWidth: 2,
+  },
+  colorSwatch: {
+    alignItems: 'center',
+    borderColor: palette.white,
+    borderRadius: 19,
+    borderWidth: 2,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  customColorSwatch: {
+    backgroundColor: palette.olivePale,
+  },
+  colorButtonText: {
+    color: palette.ink,
+    flexShrink: 1,
+    fontFamily: Fonts.serif,
+    fontSize: 16,
+    fontWeight: '500',
   },
   errorCard: {
     backgroundColor: palette.dangerPale,

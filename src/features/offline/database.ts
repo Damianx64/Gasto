@@ -3,7 +3,7 @@ import * as SQLite from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 const DATABASE_NAME = 'gasto-offline.db';
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 5;
 
 let databasePromise: Promise<SQLiteDatabase> | null = null;
 
@@ -153,6 +153,41 @@ async function migrateDatabase(database: SQLiteDatabase) {
         WHERE destination_wallet_id IS NOT NULL;
 
       PRAGMA user_version = 3;
+      `);
+    });
+  }
+
+  if (currentVersion < 4) {
+    await database.withExclusiveTransactionAsync(async (transaction) => {
+      await transaction.execAsync(`
+        ALTER TABLE local_wallets ADD COLUMN color TEXT;
+        PRAGMA user_version = 4;
+      `);
+    });
+  }
+
+  if (currentVersion < 5) {
+    await database.withExclusiveTransactionAsync(async (transaction) => {
+      await transaction.execAsync(`
+        ALTER TABLE local_wallets
+          ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order >= 0);
+
+        UPDATE local_wallets AS wallet
+           SET sort_order = (
+             SELECT COUNT(*)
+               FROM local_wallets AS preceding
+              WHERE preceding.user_id = wallet.user_id
+                AND (
+                  preceding.created_at < wallet.created_at
+                  OR (preceding.created_at = wallet.created_at AND preceding.id < wallet.id)
+                )
+           );
+
+        DROP INDEX IF EXISTS local_wallets_active_idx;
+        CREATE INDEX local_wallets_active_idx
+          ON local_wallets (user_id, deleted_at, sort_order, created_at, id);
+
+        PRAGMA user_version = 5;
       `);
     });
   }

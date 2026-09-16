@@ -72,6 +72,11 @@ function isWalletRecord(value: unknown): value is WalletSyncRecord {
     typeof record.id === 'string' &&
     typeof record.name === 'string' &&
     isWalletType(record.type) &&
+    (record.color === null ||
+      (typeof record.color === 'string' && /^#[\dA-F]{6}$/i.test(record.color))) &&
+    typeof record.sort_order === 'number' &&
+    Number.isInteger(record.sort_order) &&
+    record.sort_order >= 0 &&
     typeof record.created_at === 'string' &&
     Number.isFinite(Date.parse(record.created_at)) &&
     typeof record.client_updated_at === 'string' &&

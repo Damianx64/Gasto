@@ -49,6 +49,7 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [selectedWalletId, setSelectedWalletIdState] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const loadedUserIdRef = useRef<string | null>(null);
   const walletChangeRevisionRef = useRef(0);
   const consumedWalletChangeRef = useRef({ reports: 0, transactions: 0 });
 
@@ -56,6 +57,7 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
     let isActive = true;
 
     if (!userId || !isBootstrapped) {
+      loadedUserIdRef.current = null;
       setWallets([]);
       setSelectedWalletIdState(null);
       setIsReady(!userId);
@@ -66,7 +68,7 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
       };
     }
 
-    setIsReady(false);
+    if (loadedUserIdRef.current !== userId) setIsReady(false);
     void Promise.all([listWallets(), AsyncStorage.getItem(getSelectionKey(userId))])
       .then(([loadedWallets, storedWalletId]) => {
         if (!isActive) return;
@@ -76,6 +78,7 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
           : null;
         setWallets(loadedWallets);
         setSelectedWalletIdState(validSelection);
+        loadedUserIdRef.current = userId;
         setIsReady(true);
 
         if (storedWalletId && !validSelection) {
@@ -86,6 +89,7 @@ export function WalletScopeProvider({ children, userId }: WalletScopeProviderPro
         if (!isActive) return;
         setWallets([]);
         setSelectedWalletIdState(null);
+        loadedUserIdRef.current = userId;
         setIsReady(true);
       });
 

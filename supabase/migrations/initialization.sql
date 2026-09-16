@@ -34,6 +34,9 @@ create table public.wallets (
   user_id uuid not null references auth.users (id) on delete cascade,
   name text not null check (btrim(name) <> ''),
   type public.wallet_type not null,
+  color text constraint wallets_color_hex_check
+    check (color is null or color ~ '^#[0-9A-Fa-f]{6}$'),
+  sort_order integer not null default 0 check (sort_order >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   client_updated_at timestamptz not null default now(),
@@ -201,6 +204,8 @@ begin
         user_id,
         name,
         type,
+        color,
+        sort_order,
         created_at,
         updated_at,
         client_updated_at,
@@ -212,6 +217,8 @@ begin
         v_user_id,
         btrim(v_record ->> 'name'),
         v_wallet_type,
+        nullif(v_record ->> 'color', ''),
+        coalesce((v_record ->> 'sort_order')::integer, 0),
         coalesce((v_record ->> 'created_at')::timestamptz, now()),
         now(),
         (v_record ->> 'client_updated_at')::timestamptz,
@@ -222,6 +229,11 @@ begin
       set
         name = excluded.name,
         type = excluded.type,
+        color = excluded.color,
+        sort_order = case
+          when v_record ? 'sort_order' then excluded.sort_order
+          else public.wallets.sort_order
+        end,
         updated_at = now(),
         client_updated_at = excluded.client_updated_at,
         last_change_id = excluded.last_change_id,
@@ -442,7 +454,10 @@ begin
     'server_time', now(),
     'wallets', coalesce(
       (
-        select jsonb_agg(to_jsonb(wallet) - 'user_id' order by wallet.created_at, wallet.id)
+        select jsonb_agg(
+          to_jsonb(wallet) - 'user_id'
+          order by wallet.sort_order, wallet.created_at, wallet.id
+        )
         from public.wallets as wallet
         where wallet.user_id = v_user_id
       ),

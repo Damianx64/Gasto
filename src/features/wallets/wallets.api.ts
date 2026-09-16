@@ -3,6 +3,7 @@ import {
   deleteLocalWallet,
   getLocalWallet,
   listLocalWallets,
+  reorderLocalWallets,
   updateLocalWallet,
 } from '@/features/offline/repository';
 
@@ -26,4 +27,8 @@ export async function updateWallet(walletId: string, input: WalletInput) {
 
 export async function deleteWallet(walletId: string) {
   return deleteLocalWallet(walletId);
+}
+
+export async function reorderWallets(orderedWalletIds: string[]) {
+  return reorderLocalWallets(orderedWalletIds);
 }

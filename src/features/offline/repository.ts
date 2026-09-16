@@ -9,6 +9,7 @@ import type {
   TransactionListItem,
 } from '@/features/transactions/types';
 import type { Wallet, WalletInput } from '@/features/wallets/types';
+import { normalizeWalletColor } from '@/features/wallets/constants';
 
 import {
   assertLocalUserIsBootstrapped,
@@ -231,15 +232,21 @@ export async function listLocalWallets() {
   const userId = await getReadyUserId();
   const database = await getLocalDatabase();
   const rows = await database.getAllAsync<WalletRow>(
-    `SELECT user_id, id, name, type, created_at, client_updated_at,
-            last_change_id, deleted_at
+    `SELECT user_id, id, name, type, color, sort_order, created_at, client_updated_at,
+             last_change_id, deleted_at
        FROM local_wallets
       WHERE user_id = ? AND deleted_at IS NULL
-      ORDER BY created_at ASC, id ASC`,
+      ORDER BY sort_order ASC, created_at ASC, id ASC`,
     userId,
   );
 
-  return rows.map<Wallet>(({ id, name, type }) => ({ id, name, type }));
+  return rows.map<Wallet>(({ color, id, name, sort_order, type }) => ({
+    color,
+    id,
+    name,
+    sort_order,
+    type,
+  }));
 }
 
 export async function getLocalWallet(walletId: string) {
@@ -279,18 +286,31 @@ export async function createLocalWallet(input: WalletInput) {
   const changeId = Crypto.randomUUID();
   const changedAt = nextTimestamp();
   const name = input.name.trim();
+  const color = normalizeWalletColor(input.color);
   if (!name) throw new Error('Escribe el nombre de la billetera.');
 
   await withLocalTransaction(async (database) => {
     await assertWalletNameAvailable(database, userId, name);
+    const lastWallet = await database.getFirstAsync<{ sort_order: number }>(
+      `SELECT sort_order
+         FROM local_wallets
+        WHERE user_id = ? AND deleted_at IS NULL
+        ORDER BY sort_order DESC, created_at DESC, id DESC
+        LIMIT 1`,
+      userId,
+    );
+    const sortOrder = (lastWallet?.sort_order ?? -1) + 1;
     await database.runAsync(
       `INSERT INTO local_wallets (
-        user_id, id, name, type, created_at, client_updated_at, last_change_id, deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+        user_id, id, name, type, color, sort_order, created_at,
+        client_updated_at, last_change_id, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
       userId,
       id,
       name,
       input.type,
+      color,
+      sortOrder,
       changedAt,
       changedAt,
       changeId,
@@ -302,9 +322,56 @@ export async function createLocalWallet(input: WalletInput) {
   return id;
 }
 
+export async function reorderLocalWallets(orderedWalletIds: string[]) {
+  const userId = await getReadyUserId();
+
+  await withLocalTransaction(async (database) => {
+    const currentWallets = await database.getAllAsync<WalletRow>(
+      `SELECT *
+         FROM local_wallets
+        WHERE user_id = ? AND deleted_at IS NULL
+        ORDER BY sort_order ASC, created_at ASC, id ASC`,
+      userId,
+    );
+    const currentIds = new Set(currentWallets.map((wallet) => wallet.id));
+    const submittedIds = new Set(orderedWalletIds);
+
+    if (
+      orderedWalletIds.length !== currentWallets.length ||
+      submittedIds.size !== orderedWalletIds.length ||
+      orderedWalletIds.some((walletId) => !currentIds.has(walletId))
+    ) {
+      throw new Error('No se pudo guardar el orden porque la lista de billeteras cambió.');
+    }
+
+    const walletsById = new Map(currentWallets.map((wallet) => [wallet.id, wallet]));
+    for (const [sortOrder, walletId] of orderedWalletIds.entries()) {
+      const wallet = walletsById.get(walletId)!;
+      if (wallet.sort_order === sortOrder) continue;
+
+      const changeId = Crypto.randomUUID();
+      const changedAt = nextTimestamp(wallet.client_updated_at);
+      await database.runAsync(
+        `UPDATE local_wallets
+            SET sort_order = ?, client_updated_at = ?, last_change_id = ?
+          WHERE user_id = ? AND id = ? AND deleted_at IS NULL`,
+        sortOrder,
+        changedAt,
+        changeId,
+        userId,
+        walletId,
+      );
+      await enqueueChange(database, userId, 'wallet', walletId, changeId, changedAt);
+    }
+  });
+
+  emitLocalDataChanged();
+}
+
 export async function updateLocalWallet(walletId: string, input: WalletInput) {
   const userId = await getReadyUserId();
   const name = input.name.trim();
+  const color = normalizeWalletColor(input.color);
   if (!name) throw new Error('Escribe el nombre de la billetera.');
 
   await withLocalTransaction(async (database) => {
@@ -322,10 +389,11 @@ export async function updateLocalWallet(walletId: string, input: WalletInput) {
     const changedAt = nextTimestamp(current.client_updated_at);
     await database.runAsync(
       `UPDATE local_wallets
-          SET name = ?, type = ?, client_updated_at = ?, last_change_id = ?, deleted_at = NULL
+          SET name = ?, type = ?, color = ?, client_updated_at = ?, last_change_id = ?, deleted_at = NULL
         WHERE user_id = ? AND id = ?`,
       name,
       input.type,
+      color,
       changedAt,
       changeId,
       userId,
@@ -697,11 +765,13 @@ function toTransactionSyncRecord(row: TransactionRow): TransactionSyncRecord {
 function toWalletSyncRecord(row: WalletRow): WalletSyncRecord {
   return {
     client_updated_at: row.client_updated_at,
+    color: row.color,
     created_at: row.created_at,
     deleted_at: row.deleted_at,
     id: row.id,
     last_change_id: row.last_change_id,
     name: row.name,
+    sort_order: row.sort_order,
     type: row.type,
   };
 }
@@ -872,11 +942,14 @@ async function upsertRemoteWallet(
 
   await database.runAsync(
     `INSERT INTO local_wallets (
-       user_id, id, name, type, created_at, client_updated_at, last_change_id, deleted_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       user_id, id, name, type, color, sort_order, created_at,
+       client_updated_at, last_change_id, deleted_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (user_id, id) DO UPDATE SET
        name = excluded.name,
        type = excluded.type,
+       color = excluded.color,
+       sort_order = excluded.sort_order,
        created_at = excluded.created_at,
        client_updated_at = excluded.client_updated_at,
        last_change_id = excluded.last_change_id,
@@ -885,6 +958,8 @@ async function upsertRemoteWallet(
     remote.id,
     remote.name,
     remote.type,
+    remote.color,
+    remote.sort_order,
     remote.created_at,
     remote.client_updated_at,
     remote.last_change_id,

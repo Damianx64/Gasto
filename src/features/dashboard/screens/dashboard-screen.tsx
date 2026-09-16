@@ -34,6 +34,11 @@ import {
 } from '@/features/transactions/formatters';
 import { listTransactions } from '@/features/transactions/transactions.api';
 import type { TransactionListItem } from '@/features/transactions/types';
+import {
+  darkenWalletColor,
+  DEFAULT_WALLET_COLOR,
+  isWalletColorLight,
+} from '@/features/wallets/constants';
 import { useWalletScope } from '@/features/wallets/wallet-scope-context';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -88,6 +93,7 @@ type Trend = {
 
 type BalanceCardData = {
   balance: number;
+  color: string;
   name: string;
   walletId: string | null;
 };
@@ -203,7 +209,12 @@ export default function DashboardScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const { offlineAccount, session } = useAuthSession();
   const { connectivity, pendingCount, revision, status, syncNow } = useSync();
-  const { selectedWalletId, setSelectedWalletId, wallets } = useWalletScope();
+  const {
+    isReady: isWalletScopeReady,
+    selectedWalletId,
+    setSelectedWalletId,
+    wallets,
+  } = useWalletScope();
   const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -401,7 +412,12 @@ export default function DashboardScreen() {
       }, 0);
 
     return [
-      { balance: getBalance(transactions, null), name: 'Balance general', walletId: null },
+      {
+        balance: getBalance(transactions, null),
+        color: DEFAULT_WALLET_COLOR,
+        name: 'Balance general',
+        walletId: null,
+      },
       ...wallets.map((wallet) => ({
         balance: getBalance(
           transactions.filter(
@@ -411,6 +427,7 @@ export default function DashboardScreen() {
           ),
           wallet.id,
         ),
+        color: wallet.color ?? DEFAULT_WALLET_COLOR,
         name: wallet.name,
         walletId: wallet.id,
       })),
@@ -728,7 +745,7 @@ export default function DashboardScreen() {
               </Pressable>
             </View>
 
-            {isLoading ? (
+            {isLoading || !isWalletScopeReady ? (
               <View style={styles.loadingState}>
                 <ActivityIndicator color={palette.olive} />
                 <DashboardText type="small" themeColor="textSecondary">
@@ -796,8 +813,14 @@ export default function DashboardScreen() {
                     scrollEnabled={balanceCards.length > 1}
                     scrollEventThrottle={16}
                     showsHorizontalScrollIndicator={false}>
-                    {balanceCards.map((card) => (
-                      <View
+                    {balanceCards.map((card) => {
+                      const detailButtonColor = darkenWalletColor(card.color);
+                      const detailButtonForeground = isWalletColorLight(detailButtonColor)
+                        ? palette.ink
+                        : palette.white;
+
+                      return (
+                        <View
                         key={card.walletId ?? 'general'}
                         style={[
                           styles.balancePage,
@@ -805,7 +828,11 @@ export default function DashboardScreen() {
                             ? { width: balanceCardWidth }
                             : styles.balancePageFallback,
                         ]}>
-                        <View style={styles.balanceCard}>
+                        <View
+                          style={[
+                            styles.balanceCard,
+                            { backgroundColor: card.color },
+                          ]}>
                           <Image
                             accessible={false}
                             contentFit="contain"
@@ -815,7 +842,12 @@ export default function DashboardScreen() {
                           />
                           <View style={styles.balanceContent}>
                             <View style={styles.balanceHeader}>
-                              <DashboardText numberOfLines={1} style={styles.sectionEyebrow}>
+                              <DashboardText
+                                numberOfLines={1}
+                                style={[
+                                  styles.sectionEyebrow,
+                                  isWalletColorLight(card.color) && styles.balanceTextDark,
+                                ]}>
                                 {card.name}
                               </DashboardText>
                               <Pressable
@@ -833,7 +865,9 @@ export default function DashboardScreen() {
                                     web: isBalanceVisible ? 'visibility' : 'visibility_off',
                                   }}
                                   size={20}
-                                  tintColor={palette.white}
+                                  tintColor={
+                                    isWalletColorLight(card.color) ? palette.ink : palette.white
+                                  }
                                 />
                               </Pressable>
                             </View>
@@ -842,7 +876,10 @@ export default function DashboardScreen() {
                               <DashboardText
                                 adjustsFontSizeToFit
                                 numberOfLines={1}
-                                style={styles.balanceAmount}>
+                                style={[
+                                  styles.balanceAmount,
+                                  isWalletColorLight(card.color) && styles.balanceTextDark,
+                                ]}>
                                 {isBalanceVisible ? formatCurrency(card.balance) : '••••••'}
                               </DashboardText>
                             </Animated.View>
@@ -852,9 +889,15 @@ export default function DashboardScreen() {
                               onPress={() => router.push('/transactions')}
                               style={({ pressed }) => [
                                 styles.detailButton,
+                                { backgroundColor: detailButtonColor },
                                 pressed && styles.buttonPressed,
                               ]}>
-                              <DashboardText type="smallBold" style={styles.detailButtonText}>
+                              <DashboardText
+                                type="smallBold"
+                                style={[
+                                  styles.detailButtonText,
+                                  { color: detailButtonForeground },
+                                ]}>
                                 Ver detalle
                               </DashboardText>
                               <SymbolView
@@ -864,13 +907,14 @@ export default function DashboardScreen() {
                                   web: 'chevron_right',
                                 }}
                                 size={17}
-                                tintColor={palette.white}
+                                tintColor={detailButtonForeground}
                               />
                             </Pressable>
                           </View>
                         </View>
-                      </View>
-                    ))}
+                        </View>
+                      );
+                    })}
                   </Animated.ScrollView>
                   {balanceCards.length > 1 ? (
                     <View accessibilityRole="tablist" style={styles.balanceDots}>
@@ -1549,10 +1593,12 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
     lineHeight: 54,
   },
+  balanceTextDark: {
+    color: palette.ink,
+  },
   detailButton: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: palette.oliveDark,
     borderRadius: 22,
     flexDirection: 'row',
     gap: 7,

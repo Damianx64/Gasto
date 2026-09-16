@@ -31,6 +31,7 @@ type CustomColorPickerModalProps = {
   color: string;
   onApply: (color: string) => void;
   onClose: () => void;
+  subtitle?: string;
 };
 
 function normalizeHexColor(color: string) {
@@ -41,6 +42,7 @@ export function CustomColorPickerModal({
   color,
   onApply,
   onClose,
+  subtitle = 'Elige el tono para tu categoría',
 }: CustomColorPickerModalProps) {
   const [draftColor, setDraftColor] = useState(color);
 
@@ -74,7 +76,7 @@ export function CustomColorPickerModal({
             <View style={styles.header}>
               <View style={styles.headerCopy}>
                 <ThemedText style={styles.title}>Color personalizado</ThemedText>
-                <ThemedText style={styles.subtitle}>Elige el tono para tu categoría</ThemedText>
+                <ThemedText style={styles.subtitle}>{subtitle}</ThemedText>
               </View>
               <Pressable
                 accessibilityLabel="Cerrar selector de color"

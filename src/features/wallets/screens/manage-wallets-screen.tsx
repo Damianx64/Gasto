@@ -1,8 +1,17 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import { router, type Href, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -13,7 +22,9 @@ import { getErrorMessage } from '@/lib/errors';
 
 import type { Wallet } from '../types';
 import { useWalletScope } from '../wallet-scope-context';
-import { deleteWallet, listWallets } from '../wallets.api';
+import { deleteWallet, listWallets, reorderWallets } from '../wallets.api';
+
+const WALLET_ROW_STRIDE = 104;
 
 const palette = {
   background: '#FBF8F1',
@@ -39,14 +50,173 @@ function getWalletTypeLabel(wallet: Wallet) {
   return wallet.type === 'cash' ? 'Efectivo' : 'Tarjeta de débito';
 }
 
+type SortableWalletCardProps = {
+  deletingWalletId: string;
+  disabled: boolean;
+  index: number;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  onDelete: (wallet: Wallet) => void;
+  onDragEnd: (walletId: string, translationY: number) => number;
+  onDragMove: (walletId: string, translationY: number) => void;
+  onDragStart: (walletId: string) => void;
+  onEdit: (wallet: Wallet) => void;
+  wallet: Wallet;
+};
+
+function SortableWalletCard({
+  deletingWalletId,
+  disabled,
+  index,
+  isDragging,
+  isDropTarget,
+  onDelete,
+  onDragEnd,
+  onDragMove,
+  onDragStart,
+  onEdit,
+  wallet,
+}: SortableWalletCardProps) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const callbacksRef = useRef({ onDragEnd, onDragMove, onDragStart });
+  callbacksRef.current = { onDragEnd, onDragMove, onDragStart };
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: () => !disabled,
+        onPanResponderGrant: () => {
+          translateY.stopAnimation();
+          translateY.setValue(0);
+          callbacksRef.current.onDragStart(wallet.id);
+        },
+        onPanResponderMove: (_event, gestureState) => {
+          translateY.setValue(gestureState.dy);
+          callbacksRef.current.onDragMove(wallet.id, gestureState.dy);
+        },
+        onPanResponderRelease: (_event, gestureState) => {
+          const restingOffset = callbacksRef.current.onDragEnd(wallet.id, gestureState.dy);
+          translateY.setValue(restingOffset);
+          Animated.spring(translateY, {
+            damping: 20,
+            mass: 0.7,
+            stiffness: 220,
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          callbacksRef.current.onDragEnd(wallet.id, 0);
+          Animated.spring(translateY, {
+            damping: 20,
+            stiffness: 220,
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        },
+        onPanResponderTerminationRequest: () => false,
+        onStartShouldSetPanResponder: () => !disabled,
+      }),
+    [disabled, translateY, wallet.id],
+  );
+
+  return (
+    <Animated.View
+      style={[
+        styles.walletCard,
+        isDragging && styles.walletCardDragging,
+        isDropTarget && styles.walletCardDropTarget,
+        { transform: [{ translateY }] },
+      ]}>
+      <Image
+        accessible={false}
+        contentFit="contain"
+        pointerEvents="none"
+        source={index % 2 === 0 ? decorations.leaves : decorations.flowers}
+        style={[
+          styles.walletDecoration,
+          index % 2 === 0 ? styles.walletDecorationLeft : styles.walletDecorationRight,
+        ]}
+      />
+      <View
+        accessibilityHint="Desliza hacia arriba o abajo para cambiar la posición"
+        accessibilityLabel={`Reordenar billetera ${wallet.name}`}
+        accessibilityRole="adjustable"
+        style={[styles.dragHandle, disabled && styles.dragHandleDisabled]}
+        {...panResponder.panHandlers}>
+        <SymbolView
+          name={{ android: 'drag_handle', ios: 'line.3.horizontal', web: 'drag_handle' }}
+          size={22}
+          tintColor={palette.muted}
+        />
+      </View>
+      <View style={styles.walletIcon}>
+        <SymbolView
+          name={
+            wallet.type === 'cash'
+              ? { android: 'payments', ios: 'banknote', web: 'payments' }
+              : { android: 'credit_card', ios: 'creditcard', web: 'credit_card' }
+          }
+          size={27}
+          tintColor={palette.white}
+        />
+      </View>
+      <View style={styles.walletCopy}>
+        <ThemedText numberOfLines={1} style={styles.walletName}>
+          {wallet.name}
+        </ThemedText>
+        <ThemedText type="small" numberOfLines={1} style={styles.mutedText}>
+          {getWalletTypeLabel(wallet)}
+        </ThemedText>
+      </View>
+      <Pressable
+        accessibilityLabel={`Editar billetera ${wallet.name}`}
+        accessibilityRole="button"
+        disabled={disabled}
+        onPress={() => onEdit(wallet)}
+        style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+        <SymbolView
+          name={{ android: 'edit', ios: 'pencil', web: 'edit' }}
+          size={23}
+          tintColor={palette.oliveDark}
+        />
+      </Pressable>
+      <Pressable
+        accessibilityLabel={`Eliminar billetera ${wallet.name}`}
+        accessibilityRole="button"
+        disabled={disabled || deletingWalletId === wallet.id}
+        onPress={() => onDelete(wallet)}
+        style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}>
+        {deletingWalletId === wallet.id ? (
+          <ActivityIndicator color={palette.danger} size="small" />
+        ) : (
+          <SymbolView
+            name={{ android: 'delete', ios: 'trash', web: 'delete' }}
+            size={23}
+            tintColor={palette.danger}
+          />
+        )}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function ManageWalletsScreen() {
   const { revision } = useSync();
   const { selectedWalletId, setSelectedWalletId } = useWalletScope();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingWalletId, setDeletingWalletId] = useState('');
+  const [draggedWalletId, setDraggedWalletId] = useState('');
+  const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const hasLoadedRef = useRef(false);
+  const dragStateRef = useRef<{
+    startIndex: number;
+    targetIndex: number;
+    walletId: string;
+  } | null>(null);
 
   const loadWallets = useCallback(async (mode: 'initial' | 'silent') => {
     setErrorMessage('');
@@ -98,10 +268,73 @@ export default function ManageWalletsScreen() {
     );
   }
 
+  function handleDragStart(walletId: string) {
+    const startIndex = wallets.findIndex((wallet) => wallet.id === walletId);
+    if (startIndex < 0) return;
+
+    dragStateRef.current = { startIndex, targetIndex: startIndex, walletId };
+    setDraggedWalletId(walletId);
+    setDragTargetIndex(startIndex);
+    setErrorMessage('');
+  }
+
+  function handleDragMove(walletId: string, translationY: number) {
+    if (dragStateRef.current?.walletId !== walletId) return;
+
+    const { startIndex } = dragStateRef.current;
+    const targetIndex = Math.max(
+      0,
+      Math.min(wallets.length - 1, startIndex + Math.round(translationY / WALLET_ROW_STRIDE)),
+    );
+    if (targetIndex === dragStateRef.current.targetIndex) return;
+
+    dragStateRef.current.targetIndex = targetIndex;
+    setDragTargetIndex(targetIndex);
+  }
+
+  function handleDragEnd(walletId: string, translationY: number) {
+    const dragState = dragStateRef.current;
+    dragStateRef.current = null;
+    setDraggedWalletId('');
+    setDragTargetIndex(null);
+
+    if (!dragState || dragState.walletId !== walletId) return 0;
+    const { startIndex } = dragState;
+    const targetIndex = Math.max(
+      0,
+      Math.min(wallets.length - 1, startIndex + Math.round(translationY / WALLET_ROW_STRIDE)),
+    );
+    if (startIndex === targetIndex) return translationY;
+
+    const previousWallets = wallets;
+    const nextWallets = [...wallets];
+    const [movedWallet] = nextWallets.splice(startIndex, 1);
+    nextWallets.splice(targetIndex, 0, movedWallet);
+    const orderedWallets = nextWallets.map((wallet, sortOrder) => ({
+      ...wallet,
+      sort_order: sortOrder,
+    }));
+
+    setWallets(orderedWallets);
+    setIsReordering(true);
+    void reorderWallets(orderedWallets.map((wallet) => wallet.id))
+      .catch((error) => {
+        setWallets(previousWallets);
+        setErrorMessage(getErrorMessage(error));
+        void loadWallets('silent');
+      })
+      .finally(() => setIsReordering(false));
+
+    return translationY - (targetIndex - startIndex) * WALLET_ROW_STRIDE;
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          scrollEnabled={!draggedWalletId}
+          showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <View style={styles.headerCopy}>
               <View style={styles.titleRow}>
@@ -115,7 +348,7 @@ export default function ManageWalletsScreen() {
                 />
               </View>
               <ThemedText style={styles.subtitle}>
-                Organiza tus movimientos por efectivo o débito.
+                Arrastra cada billetera para elegir su orden en el dashboard.
               </ThemedText>
             </View>
             <View style={styles.addButtonWrap}>
@@ -171,70 +404,32 @@ export default function ManageWalletsScreen() {
           ) : (
             <View style={styles.walletList}>
               {wallets.map((wallet, index) => (
-                <View key={wallet.id} style={styles.walletCard}>
-                  <Image
-                    accessible={false}
-                    contentFit="contain"
-                    pointerEvents="none"
-                    source={index % 2 === 0 ? decorations.leaves : decorations.flowers}
-                    style={[
-                      styles.walletDecoration,
-                      index % 2 === 0
-                        ? styles.walletDecorationLeft
-                        : styles.walletDecorationRight,
-                    ]}
-                  />
-                  <View style={styles.walletIcon}>
-                    <SymbolView
-                      name={
-                        wallet.type === 'cash'
-                          ? { android: 'payments', ios: 'banknote', web: 'payments' }
-                          : { android: 'credit_card', ios: 'creditcard', web: 'credit_card' }
-                      }
-                      size={27}
-                      tintColor={palette.white}
-                    />
-                  </View>
-                  <View style={styles.walletCopy}>
-                    <ThemedText numberOfLines={1} style={styles.walletName}>
-                      {wallet.name}
-                    </ThemedText>
-                    <ThemedText type="small" numberOfLines={1} style={styles.mutedText}>
-                      {getWalletTypeLabel(wallet)}
-                    </ThemedText>
-                  </View>
-                  <Pressable
-                    accessibilityLabel={`Editar billetera ${wallet.name}`}
-                    accessibilityRole="button"
-                    onPress={() =>
-                      router.push(
-                        { pathname: '/wallet/[id]', params: { id: wallet.id } } as unknown as Href,
-                      )
-                    }
-                    style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-                    <SymbolView
-                      name={{ android: 'edit', ios: 'pencil', web: 'edit' }}
-                      size={23}
-                      tintColor={palette.oliveDark}
-                    />
-                  </Pressable>
-                  <Pressable
-                    accessibilityLabel={`Eliminar billetera ${wallet.name}`}
-                    accessibilityRole="button"
-                    disabled={deletingWalletId === wallet.id}
-                    onPress={() => confirmDeleteWallet(wallet)}
-                    style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}>
-                    {deletingWalletId === wallet.id ? (
-                      <ActivityIndicator color={palette.danger} size="small" />
-                    ) : (
-                      <SymbolView
-                        name={{ android: 'delete', ios: 'trash', web: 'delete' }}
-                        size={23}
-                        tintColor={palette.danger}
-                      />
-                    )}
-                  </Pressable>
-                </View>
+                <SortableWalletCard
+                  deletingWalletId={deletingWalletId}
+                  disabled={
+                    isReordering ||
+                    Boolean(deletingWalletId) ||
+                    (Boolean(draggedWalletId) && draggedWalletId !== wallet.id)
+                  }
+                  index={index}
+                  isDragging={draggedWalletId === wallet.id}
+                  isDropTarget={
+                    Boolean(draggedWalletId) &&
+                    dragTargetIndex === index &&
+                    draggedWalletId !== wallet.id
+                  }
+                  key={wallet.id}
+                  onDelete={confirmDeleteWallet}
+                  onDragEnd={handleDragEnd}
+                  onDragMove={handleDragMove}
+                  onDragStart={handleDragStart}
+                  onEdit={(item) =>
+                    router.push(
+                      { pathname: '/wallet/[id]', params: { id: item.id } } as unknown as Href,
+                    )
+                  }
+                  wallet={wallet}
+                />
               ))}
             </View>
           )}
@@ -330,6 +525,18 @@ const styles = StyleSheet.create({
     padding: 14,
     position: 'relative',
   },
+  walletCardDropTarget: {
+    borderColor: palette.olive,
+    borderWidth: 2,
+  },
+  walletCardDragging: {
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOffset: { height: 5, width: 0 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    zIndex: 20,
+  },
   walletDecoration: {
     height: 108,
     opacity: 0.56,
@@ -346,6 +553,15 @@ const styles = StyleSheet.create({
     right: -5,
     transform: [{ rotate: '-17deg' }, { scaleX: -1 }],
   },
+  dragHandle: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    marginLeft: -6,
+    width: 28,
+    zIndex: 2,
+  },
+  dragHandleDisabled: { opacity: 0.35 },
   walletIcon: {
     alignItems: 'center',
     backgroundColor: palette.olive,

@@ -58,6 +58,8 @@
 | `user_id` | `uuid` | Propietario; referencia a `auth.users` |
 | `name` | `text` | Nombre activo único por usuario, ignorando mayúsculas y espacios externos |
 | `type` | `wallet_type` | `cash` o `debit` |
+| `sort_order` | `integer` | Orden persistente usado en Ajustes y Dashboard |
+| `color` | `text` | Nullable; color hexadecimal `#RRGGBB`. `NULL` usa el verde predeterminado |
 | `created_at` | `timestamptz` |  |
 | `updated_at` | `timestamptz` |  |
 | `client_updated_at` | `timestamptz` | Not null, usado para resolver conflictos |
